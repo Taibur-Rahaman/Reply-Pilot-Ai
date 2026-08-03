@@ -1,0 +1,353 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Tenant {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  disabled  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  users                 User[]
+  pages                 PageConnection[]
+  conversations         Conversation[]
+  messages              Message[]
+  leads                 Lead[]
+  orders                Order[]
+  products              Product[]
+  kbDocuments           KbDocument[]
+  kbChunks              KbChunk[]
+  faqItems              FaqItem[]
+  botConfig             BotConfig?
+  complaints            Complaint[]
+  ecommerceConnections  EcommerceConnection[]
+  commentSettings       CommentSettings?
+  commentEvents         CommentEvent[]
+  auditLogs             AuditLog[]
+  timelineEvents        TimelineEvent[]
+}
+
+model User {
+  id           String   @id
+  tenantId     String
+  email        String
+  name         String
+  role         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model PageConnection {
+  id                 String   @id
+  tenantId           String
+  pageId             String
+  pageName           String
+  accessToken        String?
+  status             String
+  mode               String
+  permissionsOk      Boolean  @default(false)
+  webhookSubscribed  Boolean  @default(false)
+  lastError          String?
+  connectedAt        DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([pageId, status])
+}
+
+model Conversation {
+  id              String   @id
+  tenantId        String
+  pageId          String
+  senderId        String
+  senderName      String?
+  channel         String   @default("messenger")
+  handoffActive   Boolean  @default(false)
+  assignedUserId  String?
+  priority        String?
+  complaintTagged Boolean  @default(false)
+  lastMessageAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([tenantId, pageId, senderId, channel])
+  @@index([tenantId, lastMessageAt])
+  @@index([tenantId, senderId])
+}
+
+model Message {
+  id             String   @id
+  tenantId       String
+  conversationId String
+  direction      String
+  text           String
+  mid            String?
+  imageUrl       String?
+  recognition    Json?
+  createdAt      DateTime @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model Lead {
+  id               String    @id
+  tenantId         String
+  name             String
+  phone            String
+  businessType     String
+  interest         String
+  source           String
+  crmStage         String    @default("new")
+  notes            String?
+  senderId         String?
+  followUpQueuedAt DateTime?
+  followUpSentAt   DateTime?
+  priority         String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model Order {
+  id             String   @id
+  tenantId       String
+  pageId         String?
+  senderId       String
+  name           String
+  phone          String
+  product        String
+  qty            String   @default("1")
+  notes          String?
+  status         String   @default("new")
+  trackingStatus String   @default("new")
+  courierNote    String?
+  courierName    String?
+  trackingNumber String?
+  address        String?
+  unitPrice      Float?
+  invoiceNumber  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, senderId])
+  @@index([tenantId, phone])
+}
+
+model Product {
+  id             String   @id
+  tenantId       String
+  name           String
+  price          Float
+  imageUrl       String   @default("")
+  stock          Int      @default(0)
+  active         Boolean  @default(true)
+  size           String?
+  color          String?
+  category       String?
+  upsellOf       Json?
+  crossSellOf    Json?
+  bundleWith     Json?
+  sku            String?
+  externalId     String?
+  sourcePlatform String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active])
+}
+
+model KbDocument {
+  id            String   @id
+  tenantId      String
+  filename      String
+  mimeType      String
+  source        String
+  extractedText String   @default("")
+  storagePath   String?
+  status        String
+  note          String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chunks KbChunk[]
+
+  @@index([tenantId, createdAt])
+}
+
+model KbChunk {
+  id         String                    @id
+  tenantId   String
+  documentId String
+  content    String
+  chunkIndex Int
+  /// pgvector embedding; null when no embedding API / keyword-only fallback
+  embedding  Unsupported("vector")?
+  createdAt  DateTime                  @default(now())
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document KbDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentId])
+}
+
+model FaqItem {
+  id        String   @id
+  tenantId  String
+  question  String
+  answer    String
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model BotConfig {
+  tenantId            String   @id
+  pageId              String   @default("")
+  businessName        String
+  greeting            String
+  systemPrompt        String
+  productFaq          String
+  productImageUrl     String   @default("")
+  handoffEnabled      Boolean  @default(true)
+  abandonedLeadHours  Int      @default(24)
+  /// Sales personality blurb for Prompt Builder
+  personality         String   @default("")
+  /// Hard guardrail rule flags (JSON)
+  guardrailRules      Json?
+  updatedAt           DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Complaint {
+  id             String   @id
+  tenantId       String
+  conversationId String?
+  leadId         String?
+  senderId       String?
+  channel        String?
+  text           String
+  priority       String
+  status         String
+  resolution     String   @default("none")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model EcommerceConnection {
+  id         String    @id
+  tenantId   String
+  platform   String
+  storeUrl   String    @default("")
+  apiKey     String?
+  status     String
+  lastSyncAt DateTime?
+  lastError  String?
+  note       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, platform])
+  @@index([tenantId])
+}
+
+model CommentSettings {
+  tenantId           String   @id
+  autoReplyEnabled   Boolean  @default(true)
+  autoReplyText      String
+  spamKeywords       Json
+  leadCaptureEnabled Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model CommentEvent {
+  id          String   @id
+  tenantId    String
+  commentId   String
+  postId      String?
+  authorName  String?
+  text        String
+  isSpam      Boolean  @default(false)
+  spamAction  String?
+  autoReplied Boolean  @default(false)
+  replyText   String?
+  leadId      String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id
+  tenantId   String
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model TimelineEvent {
+  id         String   @id
+  tenantId   String
+  senderId   String?
+  leadId     String?
+  type       String
+  title      String
+  body       String?
+  refId      String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, senderId, createdAt])
+  @@index([tenantId, leadId, createdAt])
+}

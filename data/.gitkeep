@@ -1,0 +1,2 @@
+# FaceTai local data (leads.jsonl, orders.jsonl, business-config.json)
+# Created at runtime. On Vercel this disk is ephemeral — use webhooks.
