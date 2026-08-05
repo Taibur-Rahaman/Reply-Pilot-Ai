@@ -20,10 +20,9 @@ function checkAuth(request: Request): boolean {
     // If no password configured, allow only in non-production for local MVP.
     return process.env.NODE_ENV !== "production";
   }
+  // Header only — query params can leak into access logs / proxy caches.
   const header = request.headers.get("x-admin-password") || "";
-  const url = new URL(request.url);
-  const query = url.searchParams.get("password") || "";
-  return header === expected || query === expected;
+  return header === expected;
 }
 
 export async function GET(request: Request) {

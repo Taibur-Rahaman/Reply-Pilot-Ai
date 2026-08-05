@@ -8,7 +8,7 @@ import {
 export const runtime = "nodejs";
 
 /**
- * OAuth callback scaffold for FaceTai Connect (F39).
+ * OAuth callback scaffold for ReplyPilot AI Connect.
  * Real token exchange requires META_APP_ID + META_APP_SECRET + META_REDIRECT_URI.
  */
 export async function GET(request: Request) {

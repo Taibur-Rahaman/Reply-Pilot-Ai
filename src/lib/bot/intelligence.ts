@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import type { ComplaintPriority, Product } from "@/lib/db/types";
 
 const COMPLAINT_PATTERNS: {
@@ -46,7 +47,7 @@ export function complaintAckReply(priority: ComplaintPriority): string {
   const base =
     "দুঃখিত যে সমস্যা হয়েছে — আমরা গুরুত্ব দিয়ে দেখছি। একজন হিউম্যান এজেন্ট শীঘ্রই যোগাযোগ করবে।";
   if (priority === "urgent" || priority === "high") {
-    return `${base}\nরিফান্ড/এক্সচেঞ্জ লাগলে লিখুন — অথবা WhatsApp 01810-285559।`;
+    return `${base}\nরিফান্ড/এক্সচেঞ্জ লাগলে লিখুন — অথবা WhatsApp ${WHATSAPP_DISPLAY}।`;
   }
   return `${base}\nবিস্তারিত লিখলে সাহায্য করতে পারি।`;
 }

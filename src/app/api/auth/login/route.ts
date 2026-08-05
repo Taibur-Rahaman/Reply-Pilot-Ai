@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { authenticateUser, encodeSession } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(
+    `login:${getClientIp(request)}`,
+    10,
+    15 * 60 * 1000,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec!);
+
   try {
     const body = (await request.json()) as {
       email?: string;
@@ -28,11 +36,10 @@ export async function POST(request: Request) {
     }
 
     const token = await encodeSession(session);
-    const response = NextResponse.json({
-      ok: true,
-      session,
-      token,
-    });
+    // The token is returned only as an httpOnly cookie. Echoing it in the JSON
+    // body would make it readable by any script on the page, which defeats the
+    // point of httpOnly — and the login form never used it.
+    const response = NextResponse.json({ ok: true, session });
     response.cookies.set("facetai_session", token, {
       httpOnly: true,
       sameSite: "lax",

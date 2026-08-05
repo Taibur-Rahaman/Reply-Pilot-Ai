@@ -19,7 +19,7 @@ export async function ensureSeeded(): Promise<void> {
     where: { id: DEFAULT_TENANT_ID },
     create: {
       id: DEFAULT_TENANT_ID,
-      name: "FaceTai Demo",
+      name: "ReplyPilot AI Demo",
       slug: DEFAULT_TENANT_SLUG,
       disabled: false,
     },
@@ -36,7 +36,7 @@ export async function ensureSeeded(): Promise<void> {
       data: {
         id: "user_demo_admin",
         tenantId: DEFAULT_TENANT_ID,
-        email: "admin@demo.facetai.local",
+        email: "admin@demo.replypilot.local",
         name: "Demo Admin",
         role: "admin",
         passwordHash: await hashPwd(adminPassword),
@@ -81,6 +81,17 @@ export async function ensureSeeded(): Promise<void> {
       },
     });
   }
+
+  // Sample business content is opt-in.
+  //
+  // This used to run unconditionally, so the account a real shop owner signed
+  // into already contained fake conversations from `fb_user_demo_1` and
+  // friends, five `prod_demo_*` products, a sample order, and demo FAQs. Every
+  // number on every screen was therefore wrong, which is the fastest way to
+  // lose the trust of someone who is nervous about the software already.
+  //
+  // Set SEED_DEMO_CONTENT=true only for sales demos and screenshots.
+  if (process.env.SEED_DEMO_CONTENT?.trim() !== "true") return;
 
   const productCount = await prisma.product.count({
     where: { tenantId: DEFAULT_TENANT_ID },
@@ -227,7 +238,7 @@ async function seedProducts() {
       {
         id: "prod_demo_5",
         tenantId: DEFAULT_TENANT_ID,
-        name: "FaceTai Growth Plan (monthly)",
+        name: "ReplyPilot AI Growth Plan (monthly)",
         price: 4990,
         imageUrl: "https://placehold.co/400x400/0f766e/ffffff?text=Growth",
         stock: 99,
@@ -274,7 +285,7 @@ async function seedExtraProducts() {
     },
     {
       id: "prod_demo_5",
-      name: "FaceTai Growth Plan (monthly)",
+      name: "ReplyPilot AI Growth Plan (monthly)",
       price: 4990,
       imageUrl: "https://placehold.co/400x400/0f766e/ffffff?text=Growth",
       stock: 99,

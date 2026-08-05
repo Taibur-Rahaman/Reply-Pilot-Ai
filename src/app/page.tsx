@@ -9,7 +9,9 @@ import { WebChatWidget } from "@/components/WebChatWidget";
 
 export default function Home() {
   return (
-    <main>
+    // `legacy-site` opts this page into the original light theme. The
+    // redesigned app shell runs on the Dark Premium tokens instead.
+    <main className="legacy-site">
       <Hero />
       <Problem />
       <Features />

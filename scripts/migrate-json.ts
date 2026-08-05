@@ -43,6 +43,13 @@ function asDate(v: string | undefined): Date {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && process.env.SEED_CONFIRM !== "yes") {
+    console.error(
+      "Refusing to run the legacy JSON import against a production database.\n" +
+        "Re-run with SEED_CONFIRM=yes if this is intentional.",
+    );
+    process.exit(1);
+  }
   let raw: string;
   try {
     raw = await readFile(DB_FILE, "utf8");

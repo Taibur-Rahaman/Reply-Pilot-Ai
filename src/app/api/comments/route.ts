@@ -4,6 +4,8 @@ import {
   getCommentSettings,
   processComment,
 } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { resolvePublicTenantId } from "@/lib/tenant-scope";
 
 export const runtime = "nodejs";
 
@@ -37,6 +39,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(
+    `comments:${getClientIp(request)}`,
+    30,
+    60 * 60 * 1000,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec!);
+
   try {
     const body = (await request.json()) as {
       text?: string;
@@ -50,7 +59,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "text required." }, { status: 400 });
     }
     const result = await processComment({
-      tenantId: body.tenantId || DEFAULT_TENANT_ID,
+      tenantId: await resolvePublicTenantId(request, body.tenantId),
       text: body.text.trim(),
       authorName: body.authorName,
       commentId: body.commentId,

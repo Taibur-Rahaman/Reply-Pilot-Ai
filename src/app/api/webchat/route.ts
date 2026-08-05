@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  DEFAULT_TENANT_ID,
   ingestChannelMessage,
   appendMessage,
   type Channel,
@@ -14,6 +13,8 @@ import {
   formatRecommendationsForReply,
   getRecommendations,
 } from "@/lib/bot/intelligence";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { resolvePublicTenantId } from "@/lib/tenant-scope";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,9 @@ export const runtime = "nodejs";
  * Creates web-channel conversations in the same multi-tenant store.
  */
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`webchat:${getClientIp(request)}`, 30, 5 * 60 * 1000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec!);
+
   try {
     const body = (await request.json()) as {
       text?: string;
@@ -30,12 +34,12 @@ export async function POST(request: Request) {
       tenantId?: string;
       reply?: boolean;
     };
-    const text = String(body.text || "").trim();
+    const text = String(body.text || "").trim().slice(0, 2000);
     if (!text) {
       return NextResponse.json({ error: "text required." }, { status: 400 });
     }
 
-    const tenantId = body.tenantId || DEFAULT_TENANT_ID;
+    const tenantId = await resolvePublicTenantId(request, body.tenantId);
     const channel: Channel = "web";
     const senderId =
       body.senderId?.trim() ||
@@ -65,6 +69,7 @@ export async function POST(request: Request) {
         catalog,
         knowledge,
         recommendations,
+        tenantId,
       });
       replyText = ai.text;
       await appendMessage({

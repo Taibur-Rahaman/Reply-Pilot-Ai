@@ -1,8 +1,5 @@
-import { WHATSAPP_DISPLAY, whatsappUrlWithText } from "@/lib/config";
+import { WHATSAPP_DISPLAY, whatsappLink } from "@/lib/config";
 import { LeadForm } from "./LeadForm";
-
-const consultText =
-  "Hi FaceTai — I want to talk about packages and a Messenger AI setup.";
 
 export function FinalCTA() {
   return (
@@ -19,7 +16,7 @@ export function FinalCTA() {
           </p>
           <a
             className="btn btn--whatsapp"
-            href={whatsappUrlWithText(consultText)}
+            href={whatsappLink("consultation")}
             target="_blank"
             rel="noreferrer"
           >

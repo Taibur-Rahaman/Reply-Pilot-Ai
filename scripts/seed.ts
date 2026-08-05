@@ -35,6 +35,14 @@ async function main() {
     );
     process.exit(1);
   }
+  if (process.env.NODE_ENV === "production" && process.env.SEED_CONFIRM !== "yes") {
+    console.error(
+      "Refusing to seed demo data against a production database.\n" +
+        "This creates a demo tenant with a known/default admin login.\n" +
+        "If you really want this (e.g. first-time production bootstrap), re-run with SEED_CONFIRM=yes.",
+    );
+    process.exit(1);
+  }
   await ensureSeeded();
   const [tenants, products, faqs, users] = await Promise.all([
     prisma.tenant.count(),
@@ -43,14 +51,14 @@ async function main() {
     prisma.user.count(),
   ]);
   const tenant = await prisma.tenant.findFirst({ where: { slug: "demo" } });
-  console.log("FaceTai Postgres ready.");
+  console.log("ReplyPilot AI Postgres ready.");
   console.log("  tenants:", tenants);
   console.log("  products:", products);
   console.log("  faq:", faqs);
   console.log("  users:", users);
   console.log("  demo tenant:", tenant?.id || "(missing)");
   console.log(
-    "  login: admin@demo.facetai.local / ADMIN_PASSWORD or facetai-demo",
+    "  login: admin@demo.replypilot.local / ADMIN_PASSWORD or facetai-demo",
   );
 }
 

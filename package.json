@@ -1,5 +1,5 @@
 {
-  "name": "facetai",
+  "name": "replypilot-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,8 @@
     "start": "next start --hostname 127.0.0.1",
     "start:lan": "next start --hostname 0.0.0.0",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"tests/**/*.test.mts\"",
     "seed": "node --import tsx scripts/seed.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

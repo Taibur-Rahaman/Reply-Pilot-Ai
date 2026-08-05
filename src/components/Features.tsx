@@ -34,7 +34,7 @@ export function Features() {
           চ্যাটবট নয় — পুরো বিজনেস অপারেটিং সিস্টেম।
         </h2>
         <p className="section__lead">
-          FaceTai is an AI Business Operating System for Bangladeshi businesses —
+          ReplyPilot AI is an AI Business Operating System for Bangladeshi businesses —
           AI Sales Agent + Omnichannel Inbox + CRM + Knowledge Base + Order
           Management + Analytics + Automation — all in one platform.
         </p>

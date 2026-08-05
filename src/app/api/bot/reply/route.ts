@@ -3,10 +3,11 @@ import { generateAiReply } from "@/lib/bot/ai";
 import { loadBusinessConfig } from "@/lib/bot/config";
 import {
   buildKnowledgeBlob,
-  DEFAULT_TENANT_ID,
   formatCatalogForPrompt,
   listProducts,
 } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { resolvePublicTenantId } from "@/lib/tenant-scope";
 
 export const runtime = "nodejs";
 
@@ -15,13 +16,20 @@ export const runtime = "nodejs";
  * POST { "text": "...", "imageUrl"?: "...", "tenantId"?: "..." }
  */
 export async function POST(request: Request) {
+  const rl = checkRateLimit(
+    `bot-reply:${getClientIp(request)}`,
+    20,
+    10 * 60 * 1000,
+  );
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec!);
+
   try {
     const body = (await request.json()) as {
       text?: string;
       imageUrl?: string;
       tenantId?: string;
     };
-    const text = String(body.text ?? "").trim();
+    const text = String(body.text ?? "").trim().slice(0, 2000);
     if (!text && !body.imageUrl) {
       return NextResponse.json(
         { error: "Provide text and/or imageUrl." },
@@ -29,7 +37,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const tenantId = body.tenantId || DEFAULT_TENANT_ID;
+    // Never trust body.tenantId — this route feeds the tenant's private
+    // system prompt and knowledge base to the model.
+    const tenantId = await resolvePublicTenantId(request, body.tenantId);
     const config = await loadBusinessConfig(tenantId);
     const products = await listProducts(tenantId, true);
     const catalog = formatCatalogForPrompt(products);
@@ -41,6 +51,7 @@ export async function POST(request: Request) {
       imageUrl: body.imageUrl,
       catalog,
       knowledge,
+      tenantId,
     });
 
     return NextResponse.json({

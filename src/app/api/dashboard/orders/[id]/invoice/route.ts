@@ -24,7 +24,7 @@ export async function GET(
   const config = await getBotConfig(session.tenantId);
   const html = renderInvoiceHtml(
     order,
-    config?.businessName || "FaceTai Demo Store",
+    config?.businessName || "ReplyPilot AI Demo Store",
   );
   return new NextResponse(html, {
     status: 200,

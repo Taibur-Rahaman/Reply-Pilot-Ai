@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import {
   detectAiProvider,
   getAiApiKey,
@@ -6,6 +7,7 @@ import {
   getAiVisionModel,
   type BusinessConfig,
 } from "./config";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
 
@@ -23,14 +25,34 @@ export function wantsProductPhoto(text: string): boolean {
   return PHOTO_ASK.test(text);
 }
 
+/**
+ * Tenant-controlled config (systemPrompt, businessName, personality) is
+ * interpolated straight into the LLM system message. Strip newlines/role
+ * markers and cap length so a tenant can't smuggle instructions that look
+ * like a new system/assistant turn or blow out the context window.
+ */
+function sanitizePromptField(value: string, maxLen = 2000): string {
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/```/g, "'''")
+    .slice(0, maxLen)
+    .trim();
+}
+
 export function buildSystemMessage(
-  config: BusinessConfig,
+  rawConfig: BusinessConfig,
   extras?: {
     catalog?: string;
     knowledge?: string;
     recommendations?: string;
   },
 ): string {
+  const config: BusinessConfig = {
+    ...rawConfig,
+    systemPrompt: sanitizePromptField(rawConfig.systemPrompt, 4000),
+    businessName: sanitizePromptField(rawConfig.businessName, 200),
+    personality: sanitizePromptField(rawConfig.personality || "", 500),
+  };
   const rules = config.guardrailRules;
   const guardrailLines = [
     "Hard guardrails (must obey):",
@@ -132,7 +154,7 @@ export function rulesReply(
     )
   ) {
     return [
-      "FaceTai SaaS (monthly):",
+      "ReplyPilot AI SaaS (monthly):",
       "• Starter — ৳1,990/mo",
       "• Growth — ৳4,990/mo",
       "• Pro — ৳9,990/mo",
@@ -147,7 +169,7 @@ export function rulesReply(
   }
 
   if (/whatsapp|হোয়াটসঅ্যাপ|যোগাযোগ|contact|ফোন/.test(t)) {
-    return "WhatsApp / Call: 01810-285559 — অথবা এখানেই অর্ডারের ডিটেইল লিখে পাঠান।";
+    return `WhatsApp / Call: ${WHATSAPP_DISPLAY} — অথবা এখানেই অর্ডারের ডিটেইল লিখে পাঠান।`;
   }
 
   if (/ডেলিভারি|delivery|কতদিন/.test(t)) {
@@ -159,7 +181,7 @@ export function rulesReply(
   }
 
   if (wantsProductPhoto(text)) {
-    return "প্রোডাক্ট ছবি এখনো কনফিগার করা নেই। Dashboard → Catalog থেকে image URL সেট করুন, অথবা WhatsApp 01810-285559-এ ক্যাটালগ চান।";
+    return `প্রোডাক্ট ছবি এখনো কনফিগার করা নেই। Dashboard → Catalog থেকে image URL সেট করুন, অথবা WhatsApp ${WHATSAPP_DISPLAY}-এ ক্যাটালগ চান।`;
   }
 
   if (/অর্ডার|order|order korte/.test(t)) {
@@ -176,6 +198,79 @@ export function rulesReply(
   return null;
 }
 
+const AI_TIMEOUT_MS = 30_000;
+const AI_MAX_RETRY_DELAY_MS = 5_000;
+
+/** Reject non-http(s) schemes and obvious internal/private targets (SSRF guard). */
+function isSafeImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+      /^169\.254\./.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchChatCompletion(
+  url: string,
+  apiKey: string,
+  body: unknown,
+  attempt = 0,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (response.status === 429 && attempt < 1) {
+      const retryAfterHeader = Number(response.headers.get("retry-after"));
+      const delayMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+        ? Math.min(retryAfterHeader * 1000, AI_MAX_RETRY_DELAY_MS)
+        : 1500;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return fetchChatCompletion(url, apiKey, body, attempt + 1);
+    }
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const AI_DAILY_BUDGET = Number(process.env.MAX_AI_REPLIES_PER_DAY || "500");
+
+/** Per-tenant daily cap on paid LLM calls so one tenant can't blow the AI budget. */
+function withinAiBudget(tenantId?: string): boolean {
+  if (!tenantId || !Number.isFinite(AI_DAILY_BUDGET) || AI_DAILY_BUDGET <= 0) {
+    return true;
+  }
+  return checkRateLimit(`ai-budget:${tenantId}`, AI_DAILY_BUDGET, 24 * 60 * 60 * 1000)
+    .allowed;
+}
+
 export async function generateAiReply(options: {
   text: string;
   config: BusinessConfig;
@@ -183,10 +278,14 @@ export async function generateAiReply(options: {
   catalog?: string;
   knowledge?: string;
   recommendations?: string;
+  tenantId?: string;
 }): Promise<AiReplyResult> {
-  const { text, config, imageUrl, catalog, knowledge, recommendations } =
-    options;
-  const apiKey = getAiApiKey();
+  const { text, config, catalog, knowledge, recommendations, tenantId } = options;
+  const imageUrl =
+    options.imageUrl && isSafeImageUrl(options.imageUrl)
+      ? options.imageUrl
+      : undefined;
+  const apiKey = withinAiBudget(tenantId) ? getAiApiKey() : undefined;
   const extras = { catalog, knowledge, recommendations };
 
   if (!apiKey) {
@@ -198,8 +297,7 @@ export async function generateAiReply(options: {
       text: [
         config.greeting,
         "",
-        "আমি এখন rule-based মোডে আছি (AI API key সেট নেই)।",
-        "প্রাইস, ডেলিভারি, অর্ডার, ট্র্যাকিং বা ছবি জিজ্ঞেস করতে পারেন — অথবা WhatsApp 01810-285559।",
+        `প্রাইস, ডেলিভারি, অর্ডার, ট্র্যাকিং বা ছবি জিজ্ঞেস করতে পারেন — অথবা WhatsApp ${WHATSAPP_DISPLAY}।`,
       ].join("\n"),
       source: "fallback",
     };
@@ -222,13 +320,10 @@ export async function generateAiReply(options: {
     : text;
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const response = await fetchChatCompletion(
+      `${baseUrl}/chat/completions`,
+      apiKey,
+      {
         model,
         temperature: 0.5,
         max_tokens: 500,
@@ -236,8 +331,8 @@ export async function generateAiReply(options: {
           { role: "system", content: buildSystemMessage(config, extras) },
           { role: "user", content: userContent },
         ],
-      }),
-    });
+      },
+    );
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
@@ -246,7 +341,7 @@ export async function generateAiReply(options: {
       return {
         text:
           ruled ||
-          "একটু সমস্যা হচ্ছে AI রিপ্লাইতে। WhatsApp 01810-285559-এ মেসেজ করুন, অথবা আবার চেষ্টা করুন।",
+          `একটু সমস্যা হচ্ছে AI রিপ্লাইতে। WhatsApp ${WHATSAPP_DISPLAY}-এ মেসেজ করুন, অথবা আবার চেষ্টা করুন।`,
         source: "fallback",
       };
     }
@@ -265,12 +360,16 @@ export async function generateAiReply(options: {
 
     return { text: content, source: "llm", model, provider };
   } catch (error) {
-    console.error("[ai] fetch error:", error);
+    const isTimeout = error instanceof Error && error.name === "AbortError";
+    console.error(
+      isTimeout ? "[ai] request timed out" : "[ai] fetch error:",
+      isTimeout ? undefined : error,
+    );
     const ruled = rulesReply(text, config, extras);
     return {
       text:
         ruled ||
-        "নেটওয়ার্ক সমস্যার জন্য এখন AI রিপ্লাই যাচ্ছে না। পরে আবার চেষ্টা করুন বা WhatsApp 01810-285559।",
+        `নেটওয়ার্ক সমস্যার জন্য এখন AI রিপ্লাই যাচ্ছে না। পরে আবার চেষ্টা করুন বা WhatsApp ${WHATSAPP_DISPLAY}।`,
       source: "fallback",
     };
   }

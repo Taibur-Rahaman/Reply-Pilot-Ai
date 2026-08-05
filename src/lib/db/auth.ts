@@ -8,6 +8,7 @@ import { DEFAULT_TENANT_ID } from "./types";
 
 const SESSION_COOKIE = "facetai_session";
 const SESSION_TTL_SEC = 60 * 60 * 24 * 14;
+export const DEMO_ADMIN_EMAIL = "admin@demo.replypilot.local";
 
 export type SessionPayload = {
   userId: string;
@@ -17,12 +18,41 @@ export type SessionPayload = {
   role: TeamRole;
 };
 
+const isProduction = process.env.NODE_ENV === "production";
+let warnedDevSecret = false;
+
+/** Minimum entropy we accept for the HS256 signing key. */
+const MIN_SESSION_SECRET_LEN = 32;
+
 function sessionSecret(): Uint8Array {
-  const raw =
-    process.env.SESSION_SECRET?.trim() ||
-    process.env.ADMIN_PASSWORD?.trim() ||
-    "facetai-dev-session-secret-change-me";
-  return new TextEncoder().encode(raw.padEnd(32, "0").slice(0, 64));
+  const configured = process.env.SESSION_SECRET?.trim();
+  if (configured) {
+    // Padding a short secret to length does not add entropy — a 4-char secret
+    // padded with zeros is still a 4-char secret. Refuse it in production
+    // rather than pretending it is a 32-byte key.
+    if (isProduction && configured.length < MIN_SESSION_SECRET_LEN) {
+      throw new Error(
+        `SESSION_SECRET must be at least ${MIN_SESSION_SECRET_LEN} characters in production (got ${configured.length}).`,
+      );
+    }
+    return new TextEncoder().encode(
+      configured.padEnd(MIN_SESSION_SECRET_LEN, "0").slice(0, 64),
+    );
+  }
+  if (isProduction) {
+    throw new Error(
+      "SESSION_SECRET is required in production — set a long random value.",
+    );
+  }
+  if (!warnedDevSecret) {
+    warnedDevSecret = true;
+    console.warn(
+      "[auth] SESSION_SECRET not set — using an insecure dev-only default. Set SESSION_SECRET before deploying.",
+    );
+  }
+  return new TextEncoder().encode(
+    "facetai-dev-session-secret-change-me".padEnd(32, "0").slice(0, 64),
+  );
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -33,11 +63,10 @@ export async function verifyPassword(
   password: string,
   hash: string,
 ): Promise<boolean> {
-  if (!hash) return false;
-  // Legacy plaintext (pre-migrate) — accept once then rehash on next write path
-  if (!hash.startsWith("$2")) {
-    return password === hash;
-  }
+  // Only bcrypt hashes are ever accepted. Both the seed script and the JSON
+  // migration write bcrypt, so a non-`$2` value means a corrupt/tampered row —
+  // never fall back to comparing the stored value as plaintext.
+  if (!hash || !hash.startsWith("$2")) return false;
   return bcrypt.compare(password, hash);
 }
 
@@ -60,14 +89,6 @@ export async function authenticateUser(
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) return null;
 
-    // Upgrade legacy plaintext to bcrypt
-    if (!user.passwordHash.startsWith("$2")) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash: await hashPassword(password) },
-      });
-    }
-
     return {
       userId: user.id,
       tenantId: user.tenantId,
@@ -77,14 +98,16 @@ export async function authenticateUser(
     };
   }
 
-  // Fallback: ADMIN_PASSWORD unlocks demo admin
+  // Fallback: ADMIN_PASSWORD unlocks the seeded demo admin account.
+  // Only defaults to a known password outside production; production
+  // deployments must set ADMIN_PASSWORD explicitly or this path is disabled.
   const adminPwd =
     process.env.ADMIN_PASSWORD?.trim() ||
-    (process.env.NODE_ENV !== "production" ? "facetai-demo" : undefined);
+    (!isProduction ? "facetai-demo" : undefined);
   if (
     adminPwd &&
     password === adminPwd &&
-    (normalized === "admin" || normalized === "admin@demo.facetai.local")
+    (normalized === "admin" || normalized === DEMO_ADMIN_EMAIL)
   ) {
     const demo = await prisma.user.findUnique({
       where: { id: "user_demo_admin" },
@@ -125,7 +148,9 @@ export async function decodeSession(
     const userId = String(payload.userId || "");
     const tenantId = String(payload.tenantId || "");
     const role = String(payload.role || "") as TeamRole;
-    if (!userId || !tenantId || !role) return null;
+    // Reject tokens carrying a role outside the known set — a signed token
+    // with a junk role would otherwise rank 0 but still count as "logged in".
+    if (!userId || !tenantId || !(role in ROLE_RANK)) return null;
     return {
       userId,
       tenantId,
@@ -134,45 +159,37 @@ export async function decodeSession(
       role,
     };
   } catch {
-    // Legacy base64 JSON sessions (pre Phase 1) — accept once
-    try {
-      const raw = Buffer.from(token, "base64url").toString("utf8");
-      const parsed = JSON.parse(raw) as SessionPayload;
-      if (!parsed.userId || !parsed.tenantId || !parsed.role) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
+    // NOTE: there is deliberately no fallback here.
+    //
+    // This previously decoded unverified base64 JSON as a "legacy session".
+    // Because that path ran whenever signature verification failed, anyone
+    // could set facetai_session to base64url({role:"admin",tenantId:"<any>"})
+    // and get full admin on an arbitrary tenant without credentials.
+    // An unsigned token is not a session — fail closed.
+    return null;
   }
 }
 
 export async function getSessionFromRequest(
   request: Request,
 ): Promise<SessionPayload | null> {
-  const header = request.headers.get("x-facetai-session") || "";
-  if (header) return decodeSession(header);
-
+  // Sessions are read from the httpOnly cookie only. An `x-facetai-session`
+  // header was previously honoured but no client ever set it — it only widened
+  // the attack surface (token accepted from a place XSS/JS can write).
   const cookie = request.headers.get("cookie") || "";
   const match = cookie.match(/(?:^|;\s*)facetai_session=([^;]+)/);
   if (match?.[1]) return decodeSession(decodeURIComponent(match[1]));
 
-  // Legacy admin password header for /api/admin/config compatibility
+  // Legacy admin password header for /api/admin/config compatibility.
+  // Requires an explicitly configured ADMIN_PASSWORD — no unauthenticated
+  // fallback, even outside production, to avoid a silent open-admin backdoor.
   const pwd = request.headers.get("x-admin-password") || "";
   const expected = process.env.ADMIN_PASSWORD?.trim();
   if (expected && pwd === expected) {
     return {
       userId: "user_demo_admin",
       tenantId: DEFAULT_TENANT_ID,
-      email: "admin@demo.facetai.local",
-      name: "Demo Admin",
-      role: "admin",
-    };
-  }
-  if (!expected && process.env.NODE_ENV !== "production") {
-    return {
-      userId: "user_demo_admin",
-      tenantId: DEFAULT_TENANT_ID,
-      email: "admin@demo.facetai.local",
+      email: DEMO_ADMIN_EMAIL,
       name: "Demo Admin",
       role: "admin",
     };

@@ -2,22 +2,31 @@ import { NextResponse } from "next/server";
 import {
   getSessionFromRequest,
   listTenants,
-  requireRole,
   setTenantDisabled,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-/** Super-admin tenant list scaffold (Phase 1). */
+/**
+ * Cross-tenant super-admin endpoint (platform operator only).
+ * A tenant's own "admin" role only manages that tenant's team/settings —
+ * it must NOT grant visibility into other tenants. This requires an
+ * explicit SUPER_ADMIN_EMAIL match; there is no role-based fallback.
+ */
+function isSuperAdmin(
+  session: Awaited<ReturnType<typeof getSessionFromRequest>>,
+): boolean {
+  if (!session) return false;
+  const superEmail = process.env.SUPER_ADMIN_EMAIL?.trim();
+  return Boolean(superEmail) && session.email === superEmail;
+}
+
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
-  // Phase 1: demo admin only (or env SUPER_ADMIN_EMAIL)
-  const superEmail =
-    process.env.SUPER_ADMIN_EMAIL?.trim() || "admin@demo.facetai.local";
-  if (session.email !== superEmail && session.role !== "admin") {
+  if (!isSuperAdmin(session)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
@@ -30,8 +39,9 @@ export async function PATCH(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
-  const forbidden = requireRole(session, ["admin"]);
-  if (forbidden) return forbidden;
+  if (!isSuperAdmin(session)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
 
   try {
     const body = (await request.json()) as {

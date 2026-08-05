@@ -27,10 +27,14 @@ export function chunkText(
   return chunks;
 }
 
+const EMBED_TIMEOUT_MS = 30_000;
+
 async function embedTexts(texts: string[]): Promise<number[][] | null> {
   const apiKey = getAiApiKey();
   if (!apiKey || !texts.length) return null;
   const baseUrl = getAiBaseUrl().replace(/\/$/, "");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EMBED_TIMEOUT_MS);
   try {
     const response = await fetch(`${baseUrl}/embeddings`, {
       method: "POST",
@@ -42,6 +46,7 @@ async function embedTexts(texts: string[]): Promise<number[][] | null> {
         model: getAiEmbedModel(),
         input: texts,
       }),
+      signal: controller.signal,
     });
     if (!response.ok) {
       console.warn("[rag] embed API", response.status);
@@ -55,10 +60,16 @@ async function embedTexts(texts: string[]): Promise<number[][] | null> {
   } catch (error) {
     console.warn("[rag] embed error", error);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+/** Build a pgvector literal, guarding against non-finite values before they hit raw SQL. */
 function vectorLiteral(embedding: number[]): string {
+  if (!embedding.every((n) => Number.isFinite(n))) {
+    throw new Error("Invalid embedding vector: contains non-finite values.");
+  }
   return `[${embedding.join(",")}]`;
 }
 
@@ -75,8 +86,15 @@ export async function indexKbDocument(
 
   for (let i = 0; i < chunks.length; i++) {
     const id = newId("chunk");
+    let vec: string | null = null;
     if (embeddings?.[i]) {
-      const vec = vectorLiteral(embeddings[i]);
+      try {
+        vec = vectorLiteral(embeddings[i]);
+      } catch (error) {
+        console.warn("[rag] skipping invalid embedding, storing as keyword-only", error);
+      }
+    }
+    if (vec) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "KbChunk" (id, "tenantId", "documentId", content, "chunkIndex", embedding, "createdAt")
          VALUES ($1, $2, $3, $4, $5, $6::vector, NOW())`,

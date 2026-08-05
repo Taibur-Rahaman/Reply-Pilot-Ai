@@ -46,7 +46,7 @@ export function WebChatWidget() {
       {open ? (
         <div className="webchat__panel" role="dialog" aria-label="Website chat">
           <header className="webchat__head">
-            <strong>FaceTai</strong>
+            <strong>ReplyPilot AI</strong>
             <button type="button" onClick={() => setOpen(false)}>
               ×
             </button>

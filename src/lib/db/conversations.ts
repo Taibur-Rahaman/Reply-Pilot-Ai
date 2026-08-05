@@ -63,6 +63,18 @@ function mapMessage(m: {
   };
 }
 
+/** Meta may redeliver the same webhook event; use `mid` to dedupe. */
+export async function messageExistsByMid(
+  tenantId: string,
+  mid: string,
+): Promise<boolean> {
+  const existing = await prisma.message.findFirst({
+    where: { tenantId, mid },
+    select: { id: true },
+  });
+  return Boolean(existing);
+}
+
 export async function upsertConversation(input: {
   tenantId: string;
   pageId: string;
@@ -148,40 +160,52 @@ export async function appendMessage(input: {
   return mapMessage(message);
 }
 
+const CONVERSATIONS_DEFAULT_LIMIT = 100;
+const CONVERSATIONS_MAX_LIMIT = 300;
+const MESSAGES_DEFAULT_LIMIT = 300;
+
 export async function listConversations(
   tenantId: string,
   channel?: Channel | "all",
+  limit: number = CONVERSATIONS_DEFAULT_LIMIT,
 ): Promise<(Conversation & { preview?: string })[]> {
+  const take = Math.min(Math.max(limit, 1), CONVERSATIONS_MAX_LIMIT);
   const rows = await prisma.conversation.findMany({
     where: {
       tenantId,
       ...(channel && channel !== "all" ? { channel } : {}),
     },
     orderBy: { lastMessageAt: "desc" },
+    take,
   });
-  const result: (Conversation & { preview?: string })[] = [];
-  for (const c of rows) {
-    const last = await prisma.message.findFirst({
-      where: { conversationId: c.id },
-      orderBy: { createdAt: "desc" },
-    });
-    result.push({
-      ...mapConvo(c),
-      preview: last?.text?.slice(0, 120),
-    });
-  }
-  return result;
+  if (!rows.length) return [];
+
+  // Single query for the latest message per conversation instead of N+1.
+  const previews = await prisma.$queryRaw<{ conversationId: string; text: string }[]>`
+    SELECT DISTINCT ON ("conversationId") "conversationId", text
+    FROM "Message"
+    WHERE "conversationId" = ANY(${rows.map((r) => r.id)})
+    ORDER BY "conversationId", "createdAt" DESC
+  `;
+  const previewByConvo = new Map(previews.map((p) => [p.conversationId, p.text]));
+
+  return rows.map((c) => ({
+    ...mapConvo(c),
+    preview: previewByConvo.get(c.id)?.slice(0, 120),
+  }));
 }
 
 export async function listMessages(
   tenantId: string,
   conversationId: string,
+  limit: number = MESSAGES_DEFAULT_LIMIT,
 ): Promise<Message[]> {
   const rows = await prisma.message.findMany({
     where: { tenantId, conversationId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: Math.max(limit, 1),
   });
-  return rows.map(mapMessage);
+  return rows.reverse().map(mapMessage);
 }
 
 export async function getConversation(

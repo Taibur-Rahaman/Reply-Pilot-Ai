@@ -1,7 +1,5 @@
-import { WHATSAPP_DISPLAY, whatsappUrlWithText, SITE_NAME, LOGIN_PATH } from "@/lib/config";
+import { WHATSAPP_DISPLAY, whatsappLink, SITE_NAME, LOGIN_PATH } from "@/lib/config";
 import { ChatRibbon } from "./ChatRibbon";
-
-const consultText = `Hi ${SITE_NAME} — I want a free consultation about your Messenger AI agent.`;
 
 export function Hero() {
   return (
@@ -34,7 +32,7 @@ export function Hero() {
           </a>
           <a
             className="btn btn--whatsapp"
-            href={whatsappUrlWithText(consultText)}
+            href={whatsappLink("consultation")}
             target="_blank"
             rel="noreferrer"
           >

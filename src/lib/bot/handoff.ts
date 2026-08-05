@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import {
   isConversationHandoff,
   setConversationHandoff,
@@ -80,7 +81,7 @@ export function escalationAck(reason: EscalationReason): string {
     case "angry":
       return "আপনার অসন্তুষ্টি বুঝতে পারছি। একজন হিউম্যান এজেন্ট এখনই দেখবে — ধন্যবাদ ধৈর্যের জন্য।";
     case "low_confidence":
-      return "নিশ্চিত উত্তর দিতে পারছি না — টিম চেক করে জানাবে। WhatsApp: 01810-285559।";
+      return `নিশ্চিত উত্তর দিতে পারছি না — টিম চেক করে জানাবে। WhatsApp: ${WHATSAPP_DISPLAY}।`;
     default:
       return "একজন হিউম্যান এজেন্ট এই কথোপকথন হ্যান্ডেল করবে।";
   }

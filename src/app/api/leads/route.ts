@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { storeLead, validateLead } from "@/lib/leads";
 import { whatsappUrlWithText } from "@/lib/config";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`leads:${getClientIp(request)}`, 20, 60 * 60 * 1000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec!);
+
   try {
     const body = await request.json();
     const validated = validateLead(body);
@@ -16,7 +20,7 @@ export async function POST(request: Request) {
     const lead = await storeLead(validated.data);
 
     const message = [
-      "Hi FaceTai — I just submitted a lead on the website.",
+      "Hi ReplyPilot AI — I just submitted a lead on the website.",
       `Name: ${lead.name}`,
       `Phone: ${lead.phone}`,
       `Business: ${lead.businessType}`,

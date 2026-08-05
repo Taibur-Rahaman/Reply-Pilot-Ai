@@ -46,7 +46,7 @@ export default function AdminTenantsPage() {
   return (
     <main className="admin">
       <div className="admin__inner">
-        <p className="brand-mark brand-mark--sm">FaceTai</p>
+        <p className="brand-mark brand-mark--sm">ReplyPilot AI</p>
         <h1 className="admin__title">Super Admin — Tenants</h1>
         <p className="admin__lead">
           Phase 1 scaffold: list tenants and disable/enable. Billing comes later.

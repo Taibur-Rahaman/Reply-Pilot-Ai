@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "replypilot-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "env": {
+        "DATABASE_URL": "postgresql://facetai:facetai@127.0.0.1:5433/facetai?schema=public",
+        "ADMIN_PASSWORD": "facetai-demo",
+        "SESSION_SECRET": "local-dev-session-secret-at-least-32-chars"
+      }
+    }
+  ]
+}

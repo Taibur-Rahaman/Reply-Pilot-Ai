@@ -1,10 +1,9 @@
 import {
   MESSENGER_URL,
   WHATSAPP_DISPLAY,
-  WHATSAPP_URL,
+  whatsappLink,
   SITE_NAME,
   LOGIN_PATH,
-  DASHBOARD_PATH,
 } from "@/lib/config";
 
 export function SiteFooter() {
@@ -17,7 +16,7 @@ export function SiteFooter() {
           use — no extra API or hosting charge on listed packages (fair use).
         </p>
         <p>
-          <a href={WHATSAPP_URL} target="_blank" rel="noreferrer">
+          <a href={whatsappLink("general")} target="_blank" rel="noreferrer">
             WhatsApp / Call {WHATSAPP_DISPLAY}
           </a>
           {MESSENGER_URL ? (
@@ -29,12 +28,16 @@ export function SiteFooter() {
             </>
           ) : null}
         </p>
+        {/* "Admin lite" used to be linked here and from the customer sidebar.
+            It is a staff tool that exposes the raw system prompt and internal
+            doc paths, so it is no longer advertised to visitors. */}
         <p className="site-footer__admin">
           <a href={LOGIN_PATH}>Log in</a>
+        </p>
+        <p className="site-footer__legal">
+          <a href="/privacy">Privacy Policy</a>
           {" · "}
-          <a href={DASHBOARD_PATH}>Dashboard</a>
-          {" · "}
-          <a href="/admin">Admin lite</a>
+          <a href="/terms">Terms of Service</a>
         </p>
       </div>
     </footer>

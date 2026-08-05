@@ -1,4 +1,4 @@
-# FaceTai
+# ReplyPilot AI
 
 **AI Employee Platform** for Bangladesh SMBs — shared core (Memory · RAG · CRM · Handoff · Guardrails) with **Sales Agent** shipping first.
 
@@ -43,7 +43,7 @@ npm run dev     # http://127.0.0.1:3000
 
 **Dashboard login (demo tenant):**
 
-- Email: `admin@demo.facetai.local`
+- Email: `admin@demo.replypilot.local`
 - Password: value of `ADMIN_PASSWORD` (default `facetai-demo` when unset)
 
 ## Scripts
@@ -65,16 +65,18 @@ Copy `.env.example` → `.env.local`:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | **Yes** | Postgres connection string |
-| `SESSION_SECRET` | Recommended | JWT signing secret for `facetai_session` |
-| `ADMIN_PASSWORD` | Recommended | Demo admin password (hashed on seed) |
+| `SESSION_SECRET` | **Yes in production** | JWT signing secret for `facetai_session` |
+| `ADMIN_PASSWORD` | **Yes in production** | Demo admin password (hashed on seed) |
+| `SUPER_ADMIN_EMAIL` | **Yes for `/admin/tenants`** | Only this email gets cross-tenant super-admin access |
+| `MAX_AI_REPLIES_PER_DAY` | No | Per-tenant daily cap on paid LLM calls (default 500) |
 | `LEADS_WEBHOOK_URL` | No | POST JSON leads |
 | `ORDERS_WEBHOOK_URL` | No | POST JSON orders |
-| `META_*` | Webhook / Connect | Messenger + FaceTai Connect |
+| `META_*` | Webhook / Connect | Messenger + ReplyPilot AI Connect |
 | `OPENAI_API_KEY` / `AI_API_KEY` | No | LLM + embeddings; else rules + keyword RAG |
 | `AI_EMBED_MODEL` | No | Default `text-embedding-3-small` |
 | `AI_COST_PER_1K` | No | Dashboard AI cost estimate |
 
-Contact: **01810-285559** · `https://wa.me/8801810285559`
+Contact: **01601-677122** · `https://wa.me/8801601677122`
 
 ## Dashboard (Phase 1)
 
@@ -111,3 +113,18 @@ curl -s -X POST http://127.0.0.1:3000/api/bot/reply \
 ## Architecture lock
 
 Next.js App Router monolith · JSON store replaced by PostgreSQL + Prisma · pgvector for RAG · no NestJS/FastAPI · no Redis yet.
+
+## More docs
+
+| Doc | For |
+| --- | --- |
+| **[`docs/handbook/`](docs/handbook/README.md)** | **Full product handbook — architecture, data model, API, Meta Connect, AI runtime, design system, security, runbook, roadmap** |
+| [`INSTALLATION.md`](INSTALLATION.md) | Local setup + first deploy, step by step |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | Business owners using the dashboard day to day |
+| [`ADMIN_GUIDE.md`](ADMIN_GUIDE.md) | Operators: env config, security, multi-tenant admin |
+| [`API_GUIDE.md`](API_GUIDE.md) | Endpoint reference for integrators |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
+| [`LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md) | Pre-launch verification checklist |
+| [`docs/PRD.md`](docs/PRD.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SECURITY.md`](docs/SECURITY.md) | Product/architecture/security background |
+
+`GET /api/health` returns `{ ok, status }` (200/503) for uptime monitoring — checks Postgres connectivity.

@@ -1,4 +1,4 @@
-/** Multi-tenant FaceTai store types (PRD F25 + FaceTai 2.0). */
+/** Multi-tenant ReplyPilot AI store types (PRD F25 + FaceTai 2.0 legacy codename). */
 
 export type CrmStage =
   | "new"

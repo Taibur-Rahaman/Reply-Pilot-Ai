@@ -15,7 +15,7 @@ export function orderLineTotal(order: Order): number {
 /** Printable HTML invoice (browser print → PDF). */
 export function renderInvoiceHtml(
   order: Order,
-  businessName = "FaceTai Demo Store",
+  businessName = "ReplyPilot AI Demo Store",
 ): string {
   const invoiceNo = ensureInvoiceNumber(order);
   const qty = Number(order.qty) || 1;
@@ -42,7 +42,7 @@ export function renderInvoiceHtml(
 </head>
 <body>
   <h1>${escapeHtml(businessName)}</h1>
-  <p class="muted">Invoice · FaceTai Order Management</p>
+  <p class="muted">Invoice · ReplyPilot AI Order Management</p>
   <p><strong>Invoice #</strong> ${escapeHtml(invoiceNo)}<br/>
   <strong>Date</strong> ${escapeHtml(issued)}<br/>
   <strong>Order</strong> ${escapeHtml(order.id)}</p>

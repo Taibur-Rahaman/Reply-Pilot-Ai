@@ -1,6 +1,7 @@
-# FaceTai — API Contracts
+# ReplyPilot AI — API Contracts
 
-> **Status:** Contract doc (Phase 0) — 2026-07-26  
+> **Status:** Contract doc (Phase 0) — 2026-07-26, statuses refreshed 2026-08-03  
+> See [`../API_GUIDE.md`](../API_GUIDE.md) for a practical calling reference (rate limits, auth, curl examples).  
 > **Related:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`PRD.md`](./PRD.md)  
 > Status on each row: **Current** (in repo) · **Partial** · **Planned** (Phase 1+ shape)
 
@@ -137,7 +138,11 @@ All under `/api/dashboard/*`. Phase 1: enforce roles (`admin` | `manager` | `mod
 ## Webhook reliability
 
 - Messenger: verify signature when secret configured; respond 200 quickly; process pipeline sync in Phase 1 (queue later if timeouts).
-- Idempotency: prefer dedupe on provider message ids when persisting.
+- **Current**: inbound messages are deduped by Meta's `mid` before processing, so retried webhook deliveries are skipped instead of double-processed.
+
+## Rate limiting
+
+**Current**: `/api/auth/login`, `/api/leads`, `/api/orders`, `/api/comments`, `/api/webchat`, and `/api/bot/reply` are rate-limited per IP (in-memory, single-process — see `src/lib/rate-limit.ts`). Exceeding the limit returns `429` with a `Retry-After` header.
 
 ---
 

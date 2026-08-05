@@ -101,7 +101,7 @@ export default function AdminPage() {
   return (
     <main className="admin">
       <div className="admin__inner">
-        <p className="brand-mark brand-mark--sm">FaceTai</p>
+        <p className="brand-mark brand-mark--sm">ReplyPilot AI</p>
         <h1 className="admin__title">Admin lite — bot knowledge</h1>
         <p className="admin__lead">
           Set greeting, system prompt, product FAQ, and product image URL.

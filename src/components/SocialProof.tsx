@@ -9,7 +9,7 @@ const strips = [
 
 export function SocialProof() {
   return (
-    <section className="proof" aria-label="FaceTai focus areas">
+    <section className="proof" aria-label="ReplyPilot AI focus areas">
       <div className="proof__track">
         {[...strips, ...strips].map((item, index) => (
           <span key={`${item}-${index}`}>{item}</span>

@@ -129,6 +129,7 @@ model Lead {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, crmStage])
 }
 
 model Order {
@@ -157,6 +158,7 @@ model Order {
   @@index([tenantId, createdAt])
   @@index([tenantId, senderId])
   @@index([tenantId, phone])
+  @@index([tenantId, trackingStatus])
 }
 
 model Product {

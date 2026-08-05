@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import { newId, toIso } from "./ids";
 import { prisma } from "./prisma";
 import { appendTimelineEvent } from "./timeline";
@@ -341,7 +342,7 @@ export function formatTrackingReply(order: Order): string {
     order.trackingNumber ? `ট্র্যাকিং #: ${order.trackingNumber}` : null,
     order.courierNote ? `নোট: ${order.courierNote}` : null,
     "",
-    "আরও জানতে চাইলে লিখুন — অথবা WhatsApp 01810-285559।",
+    `আরও জানতে চাইলে লিখুন — অথবা WhatsApp ${WHATSAPP_DISPLAY}।`,
   ]
     .filter(Boolean)
     .join("\n");

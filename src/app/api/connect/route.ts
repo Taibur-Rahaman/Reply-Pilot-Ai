@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         "Set META_APP_ID, META_APP_SECRET, META_REDIRECT_URI (https://<domain>/api/connect/callback).",
         "Add redirect URI in Meta App settings.",
         "Click Login with Facebook → select Page → Connect.",
-        "FaceTai will exchange code → long-lived Page token, subscribe webhook, activate bot (when App Review allows).",
+        "ReplyPilot AI will exchange code → long-lived Page token, subscribe webhook, activate bot (when App Review allows).",
       ],
       note: "Without META_APP_ID credentials, use Demo Connect for local UX only — not a live Meta Page.",
     },
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         page,
-        note: "Demo mode — no Meta Graph calls. Set META_APP_ID for real FaceTai Connect.",
+        note: "Demo mode — no Meta Graph calls. Set META_APP_ID for real ReplyPilot AI Connect.",
       });
     }
 

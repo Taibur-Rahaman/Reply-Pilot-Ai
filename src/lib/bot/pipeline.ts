@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import {
   acknowledgeImageStub,
   generateAiReply,
@@ -40,6 +41,7 @@ import {
   formatCatalogForPrompt,
   formatTrackingReply,
   listProducts,
+  messageExistsByMid,
   resolveTenantIdForPage,
   storeOrder,
   tryParseOrderFromText,
@@ -58,6 +60,12 @@ export async function handleInboundMessage(
   inbound: InboundMessage,
 ): Promise<HandleResult> {
   const tenantId = await resolveTenantIdForPage(inbound.pageId);
+
+  // Meta can redeliver the same webhook event on retry/timeout — skip if
+  // we've already recorded this message id for this tenant.
+  if (inbound.mid && (await messageExistsByMid(tenantId, inbound.mid))) {
+    return { handled: true, reason: "duplicate_mid_skipped" };
+  }
 
   const convo = await upsertConversation({
     tenantId,
@@ -218,6 +226,7 @@ export async function handleInboundMessage(
         catalog,
         knowledge,
         recommendations: recBlock,
+        tenantId,
       });
       await sendTextMessage(inbound.senderId, ai.text);
       await appendMessage({
@@ -255,7 +264,7 @@ export async function handleInboundMessage(
     }
     const reply = order
       ? formatTrackingReply(order)
-      : "অর্ডার খুঁজে পাচ্ছি না। ফোন নম্বরসহ আবার লিখুন, অথবা টিম চেক করবে — WhatsApp 01810-285559।";
+      : `অর্ডার খুঁজে পাচ্ছি না। ফোন নম্বরসহ আবার লিখুন, অথবা টিম চেক করবে — WhatsApp ${WHATSAPP_DISPLAY}।`;
     await sendTextMessage(inbound.senderId, reply);
     await appendMessage({
       tenantId,
@@ -353,7 +362,17 @@ export async function handleInboundMessage(
     catalog,
     knowledge,
     recommendations: namedRecs,
+    tenantId,
   });
+
+  // Re-check handoff: a human agent may have taken over (echo event) while
+  // the AI reply above was being generated. Don't double-reply.
+  if (
+    config.handoffEnabled &&
+    (await isHandoffActive(inbound.senderId, tenantId))
+  ) {
+    return { handled: true, reason: "handoff_active_after_ai_skip" };
+  }
 
   const confidence =
     ai.source === "llm" ? 0.85 : ai.source === "rules" ? 0.8 : 0.72;

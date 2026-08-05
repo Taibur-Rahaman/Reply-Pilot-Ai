@@ -51,7 +51,7 @@ const saasPlans = [
     points: [
       "Everything in Pro",
       "Multi-tenant dashboard",
-      "FaceTai Connect scaffold",
+      "ReplyPilot AI Connect scaffold",
       "Team roles",
       "Analytics slice",
     ],
@@ -83,7 +83,7 @@ export function Pricing() {
         <p className="eyebrow">SaaS Pricing</p>
         <h2 className="section__title">মাসিক প্ল্যান। স্বচ্ছ fair-use।</h2>
         <p className="section__lead">
-          FaceTai 2.0 — AI Business Operating System. Primary packaging is
+          ReplyPilot AI 2.0 — AI Business Operating System. Primary packaging is
           recurring monthly. One-time setup fees remain optional add-ons after
           consult.
         </p>

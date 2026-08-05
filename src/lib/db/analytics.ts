@@ -29,62 +29,79 @@ export async function getAnalyticsSummary(
   tenantId: string,
 ): Promise<AnalyticsSummary> {
   const today = startOfToday();
-  const [leads, orders, conversations, messages, products, todayConvos, todayOrds] =
-    await Promise.all([
-      prisma.lead.findMany({ where: { tenantId } }),
-      prisma.order.findMany({ where: { tenantId } }),
-      prisma.conversation.count({ where: { tenantId } }),
-      prisma.message.count({ where: { tenantId } }),
-      prisma.product.count({ where: { tenantId } }),
-      prisma.conversation.count({
-        where: { tenantId, lastMessageAt: { gte: today } },
-      }),
-      prisma.order.findMany({
-        where: { tenantId, createdAt: { gte: today } },
-      }),
-    ]);
+  const [
+    leadCount,
+    orderCount,
+    conversations,
+    messages,
+    products,
+    todayConvos,
+    todayOrderCount,
+    crmStageGroups,
+    trackingStatusGroups,
+    wonLeads,
+    openLeads,
+    todayRevenueRow,
+    outboundToday,
+  ] = await Promise.all([
+    prisma.lead.count({ where: { tenantId } }),
+    prisma.order.count({ where: { tenantId } }),
+    prisma.conversation.count({ where: { tenantId } }),
+    prisma.message.count({ where: { tenantId } }),
+    prisma.product.count({ where: { tenantId } }),
+    prisma.conversation.count({
+      where: { tenantId, lastMessageAt: { gte: today } },
+    }),
+    prisma.order.count({ where: { tenantId, createdAt: { gte: today } } }),
+    prisma.lead.groupBy({ by: ["crmStage"], where: { tenantId }, _count: true }),
+    prisma.order.groupBy({
+      by: ["trackingStatus"],
+      where: { tenantId },
+      _count: true,
+    }),
+    prisma.lead.count({ where: { tenantId, crmStage: "won" } }),
+    prisma.lead.count({
+      where: {
+        tenantId,
+        crmStage: { in: ["new", "interested", "negotiating"] },
+      },
+    }),
+    prisma.$queryRaw<{ revenue: number | null }[]>`
+      SELECT SUM(CAST(qty AS float) * COALESCE("unitPrice", 0)) AS revenue
+      FROM "Order"
+      WHERE "tenantId" = ${tenantId} AND "createdAt" >= ${today}
+    `,
+    prisma.message.count({
+      where: { tenantId, direction: "outbound", createdAt: { gte: today } },
+    }),
+  ]);
 
   const byCrmStage: Record<string, number> = {};
-  for (const l of leads) {
-    byCrmStage[l.crmStage] = (byCrmStage[l.crmStage] || 0) + 1;
+  for (const g of crmStageGroups) {
+    byCrmStage[g.crmStage] = g._count;
   }
   const byTrackingStatus: Record<string, number> = {};
-  for (const o of orders) {
-    byTrackingStatus[o.trackingStatus] =
-      (byTrackingStatus[o.trackingStatus] || 0) + 1;
+  for (const g of trackingStatusGroups) {
+    byTrackingStatus[g.trackingStatus] = g._count;
   }
 
-  const wonLeads = leads.filter((l) => l.crmStage === "won").length;
   const conversionRate =
-    leads.length > 0 ? Math.round((orders.length / leads.length) * 100) : 0;
+    leadCount > 0 ? Math.round((orderCount / leadCount) * 100) : 0;
+  const todayRevenue = Number(todayRevenueRow[0]?.revenue || 0);
 
-  const todayRevenue = todayOrds.reduce((sum, o) => {
-    const qty = Number(o.qty) || 1;
-    return sum + qty * (o.unitPrice ?? 0);
-  }, 0);
-
-  const openLeads = leads.filter(
-    (l) => l.crmStage === "new" || l.crmStage === "interested" || l.crmStage === "negotiating",
-  ).length;
-
-  // Heuristic AI cost: outbound messages today × estimated tokens × rate
-  const outboundToday = await prisma.message.count({
-    where: {
-      tenantId,
-      direction: "outbound",
-      createdAt: { gte: today },
-    },
-  });
+  // Heuristic AI cost: outbound messages today × estimated tokens × rate.
+  // Rough estimate only — wire up real usage.total_tokens from the LLM
+  // response for an accurate figure.
   const costPer1k = Number(process.env.AI_COST_PER_1K || "0.002");
-  const tokensPerReply = 400;
+  const tokensPerReply = 900;
   const aiCostEstimate =
     Math.round(
       ((outboundToday * tokensPerReply) / 1000) * costPer1k * 10000,
     ) / 10000;
 
   return {
-    leads: leads.length,
-    orders: orders.length,
+    leads: leadCount,
+    orders: orderCount,
     conversations,
     messages,
     products,
@@ -93,7 +110,7 @@ export async function getAnalyticsSummary(
     byCrmStage,
     byTrackingStatus,
     todayConversations: todayConvos,
-    todayOrders: todayOrds.length,
+    todayOrders: todayOrderCount,
     todayRevenue,
     openLeads,
     aiCostEstimate,

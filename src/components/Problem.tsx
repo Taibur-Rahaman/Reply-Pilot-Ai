@@ -23,7 +23,7 @@ export function Problem() {
         </h2>
         <p className="section__lead">
           মডারেটর খরচ বাড়ছে। নিজে রিপ্লাই করতে সময় কমছে। যে AI আছে, সেটা কাজের না।
-          FaceTai এই ফাঁক বন্ধ করে — Messenger-এ আপনার নিজের AI agent দিয়ে।
+          ReplyPilot AI এই ফাঁক বন্ধ করে — Messenger-এ আপনার নিজের AI agent দিয়ে।
         </p>
         <ul className="problem__list">
           {pains.map((pain) => (

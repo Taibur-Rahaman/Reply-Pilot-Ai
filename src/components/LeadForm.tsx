@@ -1,14 +1,17 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { INTEREST_OPTIONS, WHATSAPP_URL } from "@/lib/config";
+import { INTEREST_OPTIONS, whatsappLink } from "@/lib/config";
 
 type Status = "idle" | "loading" | "success" | "error";
 
 export function LeadForm({ compact = false }: { compact?: boolean }) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
-  const [whatsappUrl, setWhatsappUrl] = useState(WHATSAPP_URL);
+  // Replaced on success by the personalised link the API builds from the
+  // submitted details. This fallback only shows if that field is missing, so it
+  // still needs to arrive pre-filled rather than as an empty chat.
+  const [whatsappUrl, setWhatsappUrl] = useState(whatsappLink("consultation"));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

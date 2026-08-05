@@ -1,0 +1,129 @@
+/**
+ * Reply Pilot AI — Design Tokens
+ *
+ * Single source of truth for the visual language. No selectors beyond :root
+ * belong in this file — if you need a rule, it goes in base.css or
+ * components.css.
+ *
+ * Theme: Dark Premium. Every colour pair used for text has been contrast
+ * checked against WCAG AA; the ratios are noted inline. The one trap worth
+ * remembering: white on --rp-primary is only 3.1:1 and fails. Orange surfaces
+ * always take --rp-primary-ink.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- colour */
+
+  --rp-bg: #09090b; /* app background                     */
+  --rp-surface: #111317; /* sidebar, sticky bars               */
+  --rp-card: #181a20; /* cards, inputs, modals              */
+  --rp-card-hi: #1f222a; /* hover / raised state               */
+  --rp-line: #26282f; /* borders, dividers                  */
+  --rp-line-strong: #33363f; /* emphasised borders                 */
+
+  --rp-primary: #ff6b00;
+  --rp-primary-hi: #ff7d1f; /* hover                              */
+  --rp-primary-lo: #e05e00; /* active / pressed                   */
+  --rp-secondary: #ff8c42;
+  --rp-accent: #ffa94d;
+  --rp-primary-ink: #09090b; /* text ON primary — 6.3:1            */
+  --rp-primary-soft: rgba(255, 107, 0, 0.12); /* tinted fills      */
+
+  --rp-text: #f8fafc; /* on --rp-bg 19.1:1 · on --rp-card 15.8:1 */
+  --rp-muted: #a1a1aa; /* on --rp-card 6.9:1                 */
+  --rp-faint: #71717a; /* decorative only — never body text  */
+
+  --rp-success: #34d399;
+  --rp-success-soft: rgba(52, 211, 153, 0.12);
+  --rp-warning: #fbbf24;
+  --rp-warning-soft: rgba(251, 191, 36, 0.12);
+  --rp-danger: #f87171;
+  --rp-danger-soft: rgba(248, 113, 113, 0.12);
+  --rp-info: #60a5fa;
+  --rp-info-soft: rgba(96, 165, 250, 0.12);
+
+  /* ------------------------------------------------------------ typography */
+
+  --rp-font: var(--font-sora), "Segoe UI", system-ui, sans-serif;
+  --rp-font-display: var(--font-syne), var(--font-sora), system-ui, sans-serif;
+  --rp-font-bn: var(--font-noto-bengali), var(--font-sora), sans-serif;
+
+  /* 14px is the floor, and only for metadata. Body starts at 17px. */
+  --rp-text-xs: 0.875rem; /* 14px — badges, timestamps        */
+  --rp-text-sm: 1rem; /* 16px — secondary text            */
+  --rp-text-base: 1.0625rem; /* 17px — body default              */
+  --rp-text-lg: 1.25rem; /* 20px — card titles               */
+  --rp-text-xl: 1.5rem; /* 24px — section headings          */
+  --rp-text-2xl: 1.875rem; /* 30px — page titles               */
+  --rp-text-3xl: 2.5rem; /* 40px — onboarding headlines      */
+
+  --rp-weight-normal: 400;
+  --rp-weight-medium: 500;
+  --rp-weight-semibold: 600;
+  --rp-weight-bold: 700;
+
+  --rp-leading-tight: 1.25;
+  --rp-leading-base: 1.6; /* generous — low digital literacy  */
+
+  /* --------------------------------------------------------------- spacing */
+  /* Strict 8px system. Do not introduce intermediate values. */
+
+  --rp-space-1: 0.5rem; /*  8px */
+  --rp-space-2: 1rem; /* 16px */
+  --rp-space-3: 1.5rem; /* 24px */
+  --rp-space-4: 2rem; /* 32px */
+  --rp-space-5: 2.5rem; /* 40px */
+  --rp-space-6: 3rem; /* 48px */
+  --rp-space-8: 4rem; /* 64px */
+
+  --rp-card-pad: var(--rp-space-3); /* 24px mobile, 32px up  */
+  --rp-page-pad: var(--rp-space-2);
+  --rp-max-width: 1080px;
+
+  /* ---------------------------------------------------------------- radius */
+
+  --rp-radius-sm: 10px;
+  --rp-radius-md: 14px;
+  --rp-radius-lg: 20px; /* the default for cards            */
+  --rp-radius-xl: 28px;
+  --rp-radius-full: 999px;
+
+  /* --------------------------------------------------------------- shadows */
+
+  --rp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --rp-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --rp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --rp-glow:
+    0 0 0 1px rgba(255, 107, 0, 0.28), 0 8px 32px rgba(255, 107, 0, 0.18);
+
+  /* ---------------------------------------------------------------- motion */
+
+  --rp-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --rp-dur-fast: 120ms;
+  --rp-dur-base: 200ms;
+  --rp-dur-slow: 320ms;
+
+  /* --------------------------------------------------------- touch targets */
+  /* 48px is the accessibility floor for anything interactive. Primary
+     controls run larger because the audience skews older and mobile-only. */
+
+  --rp-tap-min: 48px;
+  --rp-control-h: 56px;
+  --rp-control-sm: 44px; /* dense contexts only              */
+
+  /* ------------------------------------------------------------ chrome/nav */
+
+  --rp-sidebar-w: 260px;
+  --rp-tabbar-h: 64px;
+  --rp-z-nav: 100;
+  --rp-z-sheet: 200;
+  --rp-z-modal: 300;
+  --rp-z-toast: 400;
+}
+
+@media (min-width: 861px) {
+  :root {
+    --rp-card-pad: var(--rp-space-4);
+    --rp-page-pad: var(--rp-space-4);
+  }
+}

@@ -6,7 +6,7 @@
 | **Version** | 3.0 |
 | **Status** | Authoritative — AI Employee Platform |
 | **Date** | 2026-07-26 |
-| **Contact (sales)** | WhatsApp **01810-285559** (`wa.me/8801810285559`) |
+| **Contact (sales)** | WhatsApp **01601-677122** (`wa.me/8801601677122`) |
 | **Related docs** | [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) (frozen locks) · [`PHASES.md`](./PHASES.md) · [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`API.md`](./API.md) · [`SECURITY.md`](./SECURITY.md) · [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md) · [`PHASE2-AI-BOT.md`](./PHASE2-AI-BOT.md) (historical sketch) |
 
 **Conflict rule:** On product scope, architecture locks, or SKUs — **PRD + BUSINESS_DECISIONS win**. `PHASE2-AI-BOT.md` and code comments must not silently expand MVP or claim Planned features as live.

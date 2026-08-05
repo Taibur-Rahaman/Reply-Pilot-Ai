@@ -1,3 +1,4 @@
+import { WHATSAPP_DISPLAY } from "@/lib/config";
 import type { BotConfig, CommentSettings } from "./types";
 import { DEFAULT_GUARDRAIL_RULES } from "./types";
 
@@ -5,10 +6,10 @@ export function defaultBotConfig(tenantId: string): BotConfig {
   return {
     tenantId,
     pageId: "",
-    businessName: "FaceTai Demo Store",
+    businessName: "ReplyPilot AI Demo Store",
     greeting:
-      "আসসালামু আলাইকুম! FaceTai AI এখানে। প্রাইস, স্টক, ডেলিভারি বা অর্ডার — জিজ্ঞেস করুন।",
-    systemPrompt: `You are FaceTai's AI Sales Agent for a Bangladesh business (Bangla-first).
+      "আসসালামু আলাইকুম! ReplyPilot AI এখানে। প্রাইস, স্টক, ডেলিভারি বা অর্ডার — জিজ্ঞেস করুন।",
+    systemPrompt: `You are ReplyPilot AI's AI Sales Agent for a Bangladesh business (Bangla-first).
 
 Language rules (critical):
 - Default to natural Bangla (বাংলা). If the customer writes English, reply in English.
@@ -25,7 +26,7 @@ Sales + ops:
 - Complaints (খারাপ, নষ্ট, ফেরত, refund, complain): acknowledge, apologize briefly, offer human escalation, do not argue.
 Never invent Meta credentials or claim live systems you don't have.
 If unsure, ask one clarifying question.`,
-    productFaq: `FaceTai SaaS (monthly):
+    productFaq: `ReplyPilot AI SaaS (monthly):
 - Starter ৳1,990/mo
 - Growth ৳4,990/mo
 - Pro ৳9,990/mo
@@ -33,7 +34,7 @@ If unsure, ask one clarifying question.`,
 - Enterprise — Custom
 Optional one-time setup add-ons available after consult.
 
-WhatsApp sales: 01810-285559
+WhatsApp sales: ${WHATSAPP_DISPLAY}
 Delivery: typically 2–3 business days (demo). COD available in demo FAQ.
 To order say: "অর্ডার করতে চাই" with name + phone + product.
 To track: "আমার অর্ডার কোথায়?" with phone number.`,
@@ -52,7 +53,7 @@ export function defaultCommentSettings(tenantId: string): CommentSettings {
     tenantId,
     autoReplyEnabled: true,
     autoReplyText:
-      "ধন্যবাদ! বিস্তারিত জানতে Inbox / Messenger-এ মেসেজ করুন — FaceTai AI সাহায্য করবে।",
+      "ধন্যবাদ! বিস্তারিত জানতে Inbox / Messenger-এ মেসেজ করুন — ReplyPilot AI সাহায্য করবে।",
     spamKeywords: [
       "lottery",
       "crypto giveaway",
