@@ -1,12 +1,12 @@
 # ReplyPilot AI — API Contracts
 
-> **Status:** Contract doc (Phase 0) — 2026-07-26, statuses refreshed 2026-08-03  
-> See [`../API_GUIDE.md`](../API_GUIDE.md) for a practical calling reference (rate limits, auth, curl examples).  
+> **Status:** Implementation contract — 2026-08-21  
+> **Canonical execution:** [`REAL-APPROACH.md`](./REAL-APPROACH.md)  
+> See [`../API_GUIDE.md`](../API_GUIDE.md) for a practical calling reference.  
 > **Related:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`PRD.md`](./PRD.md)  
-> Status on each row: **Current** (in repo) · **Partial** · **Planned** (Phase 1+ shape)
+> Status: **Implemented** (route exists and behavior is implemented) · **Partial** · **Scaffold** · **Planned**
 
-Base URL: same origin as the Next.js app (e.g. `http://127.0.0.1:3000`).  
-JSON unless noted. Dashboard routes require session cookie unless stated.
+Base URL: same origin as the Next.js app (e.g. `http://127.0.0.1:3000`). JSON unless noted. Dashboard routes require session cookie unless stated.
 
 ---
 
@@ -14,11 +14,11 @@ JSON unless noted. Dashboard routes require session cookie unless stated.
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | **Current** → harden Phase 1 | Body: `{ email, password }` → Set-Cookie session; 401 on fail |
-| `POST` | `/api/auth/logout` | **Current** | Clears session |
-| `GET` | `/api/auth/me` | **Current** | `{ user, tenant, role }` or 401 |
+| `POST` | `/api/auth/login` | **Implemented** | Email/password → signed HTTP-only session cookie; 401 on failure |
+| `POST` | `/api/auth/logout` | **Implemented** | Clears session |
+| `GET` | `/api/auth/me` | **Implemented** | `{ user, tenant, role }` or 401 |
 
-**Phase 1:** hashed password verify; signed/encrypted session (not plaintext cookie payload).
+Production gate: verify secret entropy, cookie flags, session expiry/rotation expectations and invalid-session fail-closed behavior.
 
 ---
 
@@ -26,7 +26,8 @@ JSON unless noted. Dashboard routes require session cookie unless stated.
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `POST` | `/api/leads` | **Current** | Body: name, phone, business, interest (validate) → store + optional `LEADS_WEBHOOK_URL` |
+| `POST` | `/api/leads` | **Implemented** | Validated lead → tenant/demo handling + optional `LEADS_WEBHOOK_URL` |
+| `GET` | `/api/health` | **Implemented** | Database health → `{ ok, status }` with 200/503 behavior |
 
 ---
 
@@ -36,29 +37,33 @@ JSON unless noted. Dashboard routes require session cookie unless stated.
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `POST` | `/api/webchat` | **Current** | Body: `{ text, sessionId?, visitorId? }` → bot reply + persist `channel=web` |
-| — | Embed key | **Planned** Phase 1 | Tenant embed snippet + API key header for multi-tenant public sites |
+| `POST` | `/api/webchat` | **Implemented** | `{ text, sessionId?, visitorId? }` → reply + persistent conversation/message records |
+| — | Embed key / public tenant identification | **Partial** | Production multi-tenant embed security still requires explicit verification |
 
 ### Messenger
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `GET` | `/api/messenger/webhook` | **Current** | Meta verify challenge (`hub.mode`, `hub.verify_token`, `hub.challenge`) |
-| `POST` | `/api/messenger/webhook` | **Current** | Inbound events; `X-Hub-Signature-256` when `META_APP_SECRET` set; ACK fast; run pipeline |
+| `GET` | `/api/messenger/webhook` | **Implemented** | Meta verification challenge |
+| `POST` | `/api/messenger/webhook` | **Implemented** | Signature verification when configured, inbound normalization, deduplication and reply pipeline |
+
+Production gate: real Meta configuration, signature-required policy, page-to-tenant fail-closed behavior and retry/observability tests.
 
 ### Comments
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `POST` | `/api/comments` | **Partial** | Process text: spam flag, auto-reply draft, lead capture |
-| `GET`/`POST` | `/api/comments/stub` | **Current** | Checklist stub for Graph delete/reply |
+| `POST` | `/api/comments` | **Partial** | Spam flag, auto-reply/lead logic |
+| `GET`/`POST` | `/api/comments/stub` | **Scaffold** | Graph delete/reply integration shape; not a live Graph integration |
 
 ### Connect (F39)
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `GET`/`POST` | `/api/connect` | **Partial** | Start Demo Connect / OAuth when env present |
-| `GET` | `/api/connect/callback` | **Partial** | OAuth callback; persist Page token per tenant (encrypt Phase 3 Done) |
+| `GET`/`POST` | `/api/connect` | **Scaffold / Partial** | Demo/OAuth flow shape when Meta env is present |
+| `GET` | `/api/connect/callback` | **Scaffold / Partial** | OAuth callback and page persistence path |
+
+Do not market self-serve Connect as production-ready until the real OAuth/Page selection/subscription flow is tested and token protection is complete.
 
 ---
 
@@ -66,8 +71,8 @@ JSON unless noted. Dashboard routes require session cookie unless stated.
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `POST` | `/api/bot/reply` | **Current** | Body: `{ text, tenantId? }` → generate reply **without** channel send (test) |
-| `POST` | `/api/orders` | **Current** | Normalize order JSON → store + optional `ORDERS_WEBHOOK_URL` |
+| `POST` | `/api/bot/reply` | **Implemented** | Test AI/rules reply without channel send |
+| `POST` | `/api/orders` | **Implemented** | Normalize order JSON → Postgres + optional webhook |
 
 ---
 
@@ -75,46 +80,50 @@ JSON unless noted. Dashboard routes require session cookie unless stated.
 
 | Method | Path | Status | Contract |
 | --- | --- | --- | --- |
-| `GET`/`PUT` | `/api/admin/config` | **Current** | Password header / session; FAQ, greeting, product image |
+| `GET`/`PUT` | `/api/admin/config` | **Implemented / compatibility** | Config/FAQ update path; legacy password header requires explicit `ADMIN_PASSWORD` |
 
 ---
 
 ## Dashboard (session + RBAC)
 
-All under `/api/dashboard/*`. Phase 1: enforce roles (`admin` | `manager` | `moderator` | `agent`).
+All under `/api/dashboard/*`. Role keys are `admin | manager | moderator | agent`.
 
 | Method | Path | Status | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/dashboard/summary` | **Partial** | Home KPIs (expand Phase 1) |
-| `GET`/`PATCH` | `/api/dashboard/chats` | **Partial** | List threads; take/leave/notes Phase 1 |
-| `GET`/`PATCH` | `/api/dashboard/leads` | **Partial** | CRM stages |
-| `GET`/`POST`/`PATCH` | `/api/dashboard/orders` | **Current** | Order list/create/update |
-| `GET` | `/api/dashboard/orders/[id]/invoice` | **Current** | Printable HTML invoice |
-| `GET`/`PATCH` | `/api/dashboard/complaints` | **Partial** | Complaint queue |
-| `GET`/`POST`/`PATCH`/`DELETE` | `/api/dashboard/products` | **Current** | Catalog CRUD |
-| `GET`/`PUT` | `/api/dashboard/recommendations` | **Current** | Relation / upsell settings |
-| `GET`/`POST` | `/api/dashboard/ecommerce` | **Partial** | Connect + stub sync + CSV/JSON import |
-| `GET`/`POST`/`PUT` | `/api/dashboard/knowledge` | **Partial** | FAQ/uploads; RAG index Phase 1 |
-| `GET`/`POST` | `/api/dashboard/comments` | **Partial** | Comment AI settings / simulator |
-| `GET`/`PUT` | `/api/dashboard/team` | **Partial** | Team members; RBAC enforce Phase 1 |
-| `GET` | `/api/dashboard/analytics` | **Partial** | Thin counts → richer Phase 1–2 |
+| `GET` | `/api/dashboard/summary` | **Implemented / verify KPIs** | Home summary |
+| `GET`/`PATCH` | `/api/dashboard/chats` | **Implemented / verify handoff semantics** | Inbox threads; take/leave/notes behavior |
+| `GET`/`PATCH` | `/api/dashboard/leads` | **Implemented** | CRM stages |
+| `GET`/`POST`/`PATCH` | `/api/dashboard/orders` | **Implemented** | Order list/create/update |
+| `GET` | `/api/dashboard/orders/[id]/invoice` | **Implemented** | Printable HTML invoice |
+| `GET`/`PATCH` | `/api/dashboard/complaints` | **Implemented** | Complaint queue |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/dashboard/products` | **Implemented** | Catalog CRUD |
+| `GET`/`PUT` | `/api/dashboard/recommendations` | **Implemented** | Relation / upsell settings |
+| `GET`/`POST` | `/api/dashboard/ecommerce` | **Partial** | Connection + stub sync/import |
+| `GET`/`POST`/`PUT` | `/api/dashboard/knowledge` | **Implemented / RAG verify** | FAQ/uploads/index/retrieval |
+| `GET`/`POST` | `/api/dashboard/comments` | **Partial** | Comment AI settings/simulator |
+| `GET`/`PUT` | `/api/dashboard/team` | **Implemented / RBAC verify** | Team members and roles |
+| `GET` | `/api/dashboard/analytics` | **Implemented / KPI verify** | Analytics counts/metrics |
 
-### Planned Phase 1 additions
+### Phase 1 acceptance endpoints
 
-| Method | Path | Contract |
+The older roadmap listed these as future endpoints. Treat them as **required behavior**, not automatic implementation claims:
+
+| Endpoint | Requirement | Status rule |
 | --- | --- | --- |
-| `POST` | `/api/dashboard/chats/[id]/take` | Human claims thread; AI silent |
-| `POST` | `/api/dashboard/chats/[id]/release` | Return to AI |
-| `POST` | `/api/dashboard/chats/[id]/notes` | Agent note → CRM timeline |
-| `GET` | `/api/dashboard/customers/[id]/timeline` | Unified events |
-| `GET` | `/api/dashboard/audit` | Append-only audit (admin/manager) |
-| `POST` | `/api/dashboard/knowledge/reindex` | Chunk/embed KB |
+| `/api/dashboard/chats/[id]/take` | Human claims thread; AI silent | Implement only if existing route does not already provide equivalent behavior |
+| `/api/dashboard/chats/[id]/release` | Return control to AI | Same |
+| `/api/dashboard/chats/[id]/notes` | Agent note → CRM timeline | Same |
+| `/api/dashboard/customers/[id]/timeline` | Unified events | Required milestone behavior |
+| `/api/dashboard/audit` | Append-only audit | Required milestone behavior |
+| `/api/dashboard/knowledge/reindex` | Explicit KB reindex | Required if current UI cannot trigger equivalent indexing |
 
-### Planned Super Admin
+Do not create duplicate endpoints simply to match an old document. First verify whether the current implementation already satisfies the contract through another route.
 
-| Method | Path | Phase |
-| --- | --- | --- |
-| `GET`/`PATCH` | `/api/platform/tenants` | Phase 1 scaffold list/disable; billing Phase 5 |
+### Super Admin
+
+| Method | Path | Status | Purpose |
+| --- | --- | --- | --- |
+| `GET`/`PATCH` | `/api/platform/tenants` or current equivalent | **Scaffold / verify** | Tenant list/disable; billing is future |
 
 ---
 
@@ -130,19 +139,20 @@ All under `/api/dashboard/*`. Phase 1: enforce roles (`admin` | `manager` | `mod
 | 401 | Unauthenticated |
 | 403 | Authenticated but RBAC deny / wrong tenant |
 | 404 | Missing resource (tenant-scoped) |
-| 429 | Rate limit (webhooks / public chat) |
+| 429 | Rate limit |
 | 500 | Unexpected |
 
 ---
 
 ## Webhook reliability
 
-- Messenger: verify signature when secret configured; respond 200 quickly; process pipeline sync in Phase 1 (queue later if timeouts).
-- **Current**: inbound messages are deduped by Meta's `mid` before processing, so retried webhook deliveries are skipped instead of double-processed.
+- Messenger should verify `X-Hub-Signature-256` in production.
+- Inbound Messenger events are deduplicated by Meta message ID before processing.
+- Keep webhook acknowledgement fast; introduce a queue only when measured load requires it.
 
 ## Rate limiting
 
-**Current**: `/api/auth/login`, `/api/leads`, `/api/orders`, `/api/comments`, `/api/webchat`, and `/api/bot/reply` are rate-limited per IP (in-memory, single-process — see `src/lib/rate-limit.ts`). Exceeding the limit returns `429` with a `Retry-After` header.
+Current public-sensitive endpoints use in-memory per-process rate limiting. This is acceptable for local/single-instance development but **is not a complete distributed production abuse-control strategy**. Pilot deployment must decide whether the host topology requires a shared limiter.
 
 ---
 
@@ -151,3 +161,4 @@ All under `/api/dashboard/*`. Phase 1: enforce roles (`admin` | `manager` | `mod
 | Date | Notes |
 | --- | --- |
 | 2026-07-26 | Phase 0 contracts from existing routes + Phase 1 planned endpoints |
+| 2026-08-21 | Reclassified routes by implementation reality; added production verification gates and duplicate-endpoint rule |
