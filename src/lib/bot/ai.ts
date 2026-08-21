@@ -279,6 +279,7 @@ export async function generateAiReply(options: {
   knowledge?: string;
   recommendations?: string;
   tenantId?: string;
+  history?: ChatTurn[];
 }): Promise<AiReplyResult> {
   const { text, config, catalog, knowledge, recommendations, tenantId } = options;
   const imageUrl =
@@ -329,6 +330,13 @@ export async function generateAiReply(options: {
         max_tokens: 500,
         messages: [
           { role: "system", content: buildSystemMessage(config, extras) },
+          ...(options.history || [])
+            .filter((turn) => turn.content.trim())
+            .slice(-6)
+            .map((turn) => ({
+              role: turn.role,
+              content: turn.content.slice(0, 500),
+            })),
           { role: "user", content: userContent },
         ],
       },

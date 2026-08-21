@@ -29,6 +29,8 @@ export type EscalationReason =
   | "angry"
   | "low_confidence"
   | "complaint"
+  | "human_requested"
+  | "order_dispute"
   | "none";
 
 const REFUND_RE =
@@ -37,6 +39,10 @@ const LEGAL_RE =
   /lawyer|legal|police|আইন|আদালত|পুলিশ|কোর্ট|sue|lawsuit|ভোক্তা অধিকার/i;
 const ANGRY_RE =
   /idiot|scam|fraud|cheat|থাক|বদমাশ|হারামজাদা|গালি|angry|furious|রাগ|খারাপ সার্ভিস|worst|never again/i;
+const HUMAN_RE =
+  /(?:talk to|speak to|call|need|want|give me).{0,20}(?:human|agent|manager|operator|person)|হিউম্যান|এজেন্ট|ম্যানেজার|ম্যানেজার-এর সাথে|মানুষের সাথে|কথা বলব|representative|live agent/i;
+const DISPUTE_RE =
+  /wrong (?:item|product|order)|missing (?:money|payment|item)|didn't (?:receive|get)|পাইনি|ভুল প্রোডাক্ট|অর্ডার ভুল|chargeback|dispute/i;
 
 /** Evaluate hard escalation rules from Prompt Builder / AI_GUARDRAILS. */
 export function evaluateEscalation(
@@ -59,6 +65,12 @@ export function evaluateEscalation(
   if (rules.escalateAngry && ANGRY_RE.test(t)) {
     return { escalate: true, reason: "angry" };
   }
+  if (HUMAN_RE.test(t)) {
+    return { escalate: true, reason: "human_requested" };
+  }
+  if (DISPUTE_RE.test(t)) {
+    return { escalate: true, reason: "order_dispute" };
+  }
   if (
     rules.escalateLowConfidence &&
     typeof opts?.confidence === "number" &&
@@ -80,6 +92,10 @@ export function escalationAck(reason: EscalationReason): string {
       return "আইনি বিষয় AI দিয়ে সমাধান করা যায় না। আমাদের টিম এখন হ্যান্ডওভার নিচ্ছে।";
     case "angry":
       return "আপনার অসন্তুষ্টি বুঝতে পারছি। একজন হিউম্যান এজেন্ট এখনই দেখবে — ধন্যবাদ ধৈর্যের জন্য।";
+    case "human_requested":
+      return "একজন হিউম্যান এজেন্ট এই কথোপকথন হ্যান্ডেল করবে। একটু অপেক্ষা করুন।";
+    case "order_dispute":
+      return "অর্ডার নিয়ে অস্পষ্টতা AI দিয়ে মিটাতে চাই না — টিম দেখে নিশ্চিত করে জানাবে।";
     case "low_confidence":
       return `নিশ্চিত উত্তর দিতে পারছি না — টিম চেক করে জানাবে। WhatsApp: ${WHATSAPP_DISPLAY}।`;
     default:

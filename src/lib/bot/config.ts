@@ -19,6 +19,7 @@ export type BusinessConfig = {
   abandonedLeadHours?: number;
   personality?: string;
   guardrailRules?: GuardrailRules;
+  botEnabled?: boolean;
   updatedAt: string;
 };
 
@@ -34,6 +35,7 @@ export function toBusinessConfig(c: DbBotConfig): BusinessConfig {
     abandonedLeadHours: c.abandonedLeadHours,
     personality: c.personality,
     guardrailRules: c.guardrailRules || DEFAULT_GUARDRAIL_RULES,
+    botEnabled: c.botEnabled !== false,
     updatedAt: c.updatedAt,
   };
 }

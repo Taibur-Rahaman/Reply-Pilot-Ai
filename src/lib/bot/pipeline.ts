@@ -40,49 +40,97 @@ import {
   findOrdersByPhone,
   formatCatalogForPrompt,
   formatTrackingReply,
+  listMessages,
   listProducts,
-  messageExistsByMid,
   resolveTenantIdForPage,
   storeOrder,
   tryParseOrderFromText,
   upsertConversation,
   wantsOrderTracking,
 } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { resolvePageSendToken } from "./page-token";
+import {
+  ungroundedFactualAsk,
+  validateGroundedReply,
+} from "./grounding";
 
 export type HandleResult = {
   handled: boolean;
   reason?: string;
   replyPreview?: string;
   orderId?: string;
+  conversationId?: string;
 };
+
+function isUniqueMidConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
+async function deliverText(
+  inbound: InboundMessage,
+  text: string,
+  token: string | undefined,
+) {
+  if (inbound.channel === "web") return { ok: true, skipped: false as const };
+  return sendTextMessage(inbound.senderId, text, token);
+}
+
+async function deliverImage(
+  inbound: InboundMessage,
+  imageUrl: string,
+  token: string | undefined,
+) {
+  if (inbound.channel === "web") return { ok: true, skipped: false as const };
+  return sendImageMessage(inbound.senderId, imageUrl, token);
+}
 
 export async function handleInboundMessage(
   inbound: InboundMessage,
 ): Promise<HandleResult> {
-  const tenantId = await resolveTenantIdForPage(inbound.pageId);
-
-  // Meta can redeliver the same webhook event on retry/timeout — skip if
-  // we've already recorded this message id for this tenant.
-  if (inbound.mid && (await messageExistsByMid(tenantId, inbound.mid))) {
-    return { handled: true, reason: "duplicate_mid_skipped" };
+  const channel = inbound.channel || "messenger";
+  const tenantId =
+    inbound.tenantId || (await resolveTenantIdForPage(inbound.pageId));
+  if (!tenantId) {
+    console.warn(
+      "[pipeline] refusing unmapped page",
+      inbound.pageId || "(none)",
+    );
+    return { handled: false, reason: "unknown_page_unmapped" };
   }
+
+  const pageToken = await resolvePageSendToken(tenantId, inbound.pageId);
 
   const convo = await upsertConversation({
     tenantId,
-    pageId: inbound.pageId || "unknown",
+    pageId: inbound.pageId || (channel === "web" ? "web_widget" : "unknown"),
     senderId: inbound.senderId,
-    channel: "messenger",
+    channel,
   });
 
   if (inbound.text || inbound.imageUrl) {
-    await appendMessage({
-      tenantId,
-      conversationId: convo.id,
-      direction: inbound.isEcho ? "outbound" : "inbound",
-      text: inbound.text || (inbound.imageUrl ? "[image]" : ""),
-      mid: inbound.mid,
-      imageUrl: inbound.imageUrl,
-    });
+    try {
+      await appendMessage({
+        tenantId,
+        conversationId: convo.id,
+        direction: inbound.isEcho ? "outbound" : "inbound",
+        text: inbound.text || (inbound.imageUrl ? "[image]" : ""),
+        mid: inbound.mid,
+        imageUrl: inbound.imageUrl,
+      });
+    } catch (error) {
+      if (inbound.mid && isUniqueMidConflict(error)) {
+        return {
+          handled: true,
+          reason: "duplicate_mid_skipped",
+          conversationId: convo.id,
+        };
+      }
+      throw error;
+    }
   }
 
   if (inbound.isEcho) {
@@ -98,6 +146,13 @@ export async function handleInboundMessage(
   }
 
   const config = await loadBusinessConfig(tenantId);
+  if (config.botEnabled === false) {
+    return {
+      handled: true,
+      reason: "bot_disabled",
+      conversationId: convo.id,
+    };
+  }
   const products = await listProducts(tenantId, true);
   const catalog = formatCatalogForPrompt(products);
   const knowledge = await buildKnowledgeBlob(
@@ -116,7 +171,7 @@ export async function handleInboundMessage(
     if (/^\/?(bot on|resume|এআই চালু|ai on)$/i.test(handoffText)) {
       await setHandoff(inbound.senderId, false, tenantId);
       const resume = "AI আবার চালু হয়েছে। কীভাবে সাহায্য করতে পারি?";
-      await sendTextMessage(inbound.senderId, resume);
+      await deliverText(inbound, resume, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
@@ -139,7 +194,7 @@ export async function handleInboundMessage(
     if (esc.escalate && esc.reason !== "none" && esc.reason !== "complaint") {
       await setHandoff(inbound.senderId, true, tenantId);
       const ack = escalationAck(esc.reason);
-      await sendTextMessage(inbound.senderId, ack);
+      await deliverText(inbound, ack, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
@@ -161,7 +216,7 @@ export async function handleInboundMessage(
         tenantId,
         conversationId: convo.id,
         senderId: inbound.senderId,
-        channel: "messenger",
+        channel,
         text,
         priority: complaint.priority,
         notes: complaint.matched
@@ -172,7 +227,7 @@ export async function handleInboundMessage(
         await setHandoff(inbound.senderId, true, tenantId);
       }
       const ack = complaintAckReply(complaint.priority);
-      await sendTextMessage(inbound.senderId, ack);
+      await deliverText(inbound, ack, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
@@ -197,7 +252,7 @@ export async function handleInboundMessage(
         match.similar,
         match.confidence,
       );
-      await sendTextMessage(inbound.senderId, reply);
+      await deliverText(inbound, reply, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
@@ -219,6 +274,12 @@ export async function handleInboundMessage(
     }
 
     if (getAiApiKey()) {
+      if (
+        config.handoffEnabled &&
+        (await isHandoffActive(inbound.senderId, tenantId))
+      ) {
+        return { handled: true, reason: "handoff_active_after_ai_skip" };
+      }
       const ai = await generateAiReply({
         text: "",
         config,
@@ -228,18 +289,30 @@ export async function handleInboundMessage(
         recommendations: recBlock,
         tenantId,
       });
-      await sendTextMessage(inbound.senderId, ai.text);
+      const groundedVision = validateGroundedReply(ai.text, {
+        products,
+        trackingNumbers: [],
+        knowledge,
+        userText: text || "[image]",
+      });
+      if (
+        config.handoffEnabled &&
+        (await isHandoffActive(inbound.senderId, tenantId))
+      ) {
+        return { handled: true, reason: "handoff_active_after_ai_skip" };
+      }
+      await deliverText(inbound, groundedVision.text, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
         direction: "outbound",
-        text: ai.text,
+        text: groundedVision.text,
         recognition: { method: "vision" },
       });
-      return { handled: true, reason: "image_vision", replyPreview: ai.text };
+      return { handled: true, reason: "image_vision", replyPreview: groundedVision.text };
     }
     const stub = acknowledgeImageStub();
-    await sendTextMessage(inbound.senderId, stub);
+    await deliverText(inbound, stub, pageToken);
     await appendMessage({
       tenantId,
       conversationId: convo.id,
@@ -265,7 +338,7 @@ export async function handleInboundMessage(
     const reply = order
       ? formatTrackingReply(order)
       : `অর্ডার খুঁজে পাচ্ছি না। ফোন নম্বরসহ আবার লিখুন, অথবা টিম চেক করবে — WhatsApp ${WHATSAPP_DISPLAY}।`;
-    await sendTextMessage(inbound.senderId, reply);
+    await deliverText(inbound, reply, pageToken);
     await appendMessage({
       tenantId,
       conversationId: convo.id,
@@ -302,7 +375,7 @@ export async function handleInboundMessage(
       "",
       "শীঘ্রই কনফার্ম করা হবে। ধন্যবাদ!",
     ].join("\n");
-    await sendTextMessage(inbound.senderId, confirm);
+    await deliverText(inbound, confirm, pageToken);
     await appendMessage({
       tenantId,
       conversationId: convo.id,
@@ -327,11 +400,11 @@ export async function handleInboundMessage(
       null;
     const imageUrl = withImage?.imageUrl || config.productImageUrl;
     if (imageUrl) {
-      await sendImageMessage(inbound.senderId, imageUrl);
+      await deliverImage(inbound, imageUrl, pageToken);
       const caption = withImage
         ? `${withImage.name} — ৳${withImage.price} (stock ${withImage.stock})। অর্ডার করতে নাম + ফোন লিখুন।`
         : "এই প্রোডাক্টের ছবি। অর্ডার করতে নাম + ফোন + প্রোডাক্ট লিখে পাঠান।";
-      await sendTextMessage(inbound.senderId, caption);
+      await deliverText(inbound, caption, pageToken);
       await appendMessage({
         tenantId,
         conversationId: convo.id,
@@ -353,6 +426,41 @@ export async function handleInboundMessage(
       )
     : recBlock;
 
+  const latestOrder = await findLatestOrderForSender(tenantId, inbound.senderId);
+  const groundingCtx = {
+    products,
+    trackingNumbers: latestOrder?.trackingNumber
+      ? [latestOrder.trackingNumber]
+      : [],
+    knowledge,
+    userText: text,
+  };
+  const preGround = ungroundedFactualAsk(groundingCtx);
+  if (preGround) {
+    await setHandoff(inbound.senderId, true, tenantId);
+    await deliverText(inbound, preGround, pageToken);
+    await appendMessage({
+      tenantId,
+      conversationId: convo.id,
+      direction: "outbound",
+      text: preGround,
+    });
+    return {
+      handled: true,
+      reason: "ungrounded_refuse",
+      replyPreview: preGround,
+      conversationId: convo.id,
+    };
+  }
+
+  const historyRows = await listMessages(tenantId, convo.id, 8);
+  const history = historyRows.slice(0, -1).map((m) => ({
+    role: (m.direction === "inbound" ? "user" : "assistant") as
+      | "user"
+      | "assistant",
+    content: m.text.slice(0, 500),
+  }));
+
   const ai = await generateAiReply({
     text: inbound.imageUrl
       ? `${text}\n[Customer also attached an image]`
@@ -363,6 +471,7 @@ export async function handleInboundMessage(
     knowledge,
     recommendations: namedRecs,
     tenantId,
+    history,
   });
 
   // Re-check handoff: a human agent may have taken over (echo event) while
@@ -374,16 +483,21 @@ export async function handleInboundMessage(
     return { handled: true, reason: "handoff_active_after_ai_skip" };
   }
 
-  const confidence =
-    ai.source === "llm" ? 0.85 : ai.source === "rules" ? 0.8 : 0.72;
+  const grounded = validateGroundedReply(ai.text, groundingCtx);
+  const confidence = grounded.confidence;
   const lowConf = evaluateEscalation(text, {
     confidence,
     rules: config.guardrailRules,
   });
-  if (lowConf.escalate && lowConf.reason === "low_confidence") {
+  if (
+    (!grounded.ok && grounded.violations.length) ||
+    (lowConf.escalate && lowConf.reason === "low_confidence")
+  ) {
     await setHandoff(inbound.senderId, true, tenantId);
-    const ack = escalationAck("low_confidence");
-    await sendTextMessage(inbound.senderId, ack);
+    const ack = grounded.ok
+      ? escalationAck("low_confidence")
+      : grounded.text;
+    await deliverText(inbound, ack, pageToken);
     await appendMessage({
       tenantId,
       conversationId: convo.id,
@@ -392,15 +506,17 @@ export async function handleInboundMessage(
     });
     return {
       handled: true,
-      reason: "escalate_low_confidence",
+      reason: grounded.ok
+        ? "escalate_low_confidence"
+        : "ungrounded_after_llm",
       replyPreview: ack,
     };
   }
 
   if (ai.text === "PRODUCT_IMAGE" && config.productImageUrl) {
-    await sendImageMessage(inbound.senderId, config.productImageUrl);
+    await deliverImage(inbound, config.productImageUrl, pageToken);
     const msg = "প্রোডাক্ট ছবি পাঠালাম। আর কিছু জানতে চান?";
-    await sendTextMessage(inbound.senderId, msg);
+    await deliverText(inbound, msg, pageToken);
     await appendMessage({
       tenantId,
       conversationId: convo.id,
@@ -410,7 +526,7 @@ export async function handleInboundMessage(
     return { handled: true, reason: "product_image_via_rules" };
   }
 
-  const sendResult = await sendTextMessage(inbound.senderId, ai.text);
+  const sendResult = await deliverText(inbound, ai.text, pageToken);
   await appendMessage({
     tenantId,
     conversationId: convo.id,
@@ -427,7 +543,8 @@ export async function handleInboundMessage(
     reason: sendResult.skipped
       ? "reply_skipped_no_token"
       : `reply_${ai.source}`,
-    replyPreview: ai.text,
+    replyPreview: grounded.ok ? grounded.text : ai.text,
+    conversationId: convo.id,
   };
 }
 
