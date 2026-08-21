@@ -43,8 +43,15 @@ describe("decodeSession", () => {
       role: "admin",
     });
     // Flip a character in the signature segment.
+    //
+    // Must be the FIRST character, not the last: a 32-byte HMAC encodes to 43
+    // base64url characters, so the final one carries only 4 significant bits
+    // plus 2 bits of padding. Several characters there decode to the same byte,
+    // so tampering with it left the signature valid roughly a quarter of the
+    // time and this test failed at random.
     const [h, p, s] = real.split(".");
-    const tampered = `${h}.${p}.${s.slice(0, -1)}${s.at(-1) === "A" ? "B" : "A"}`;
+    const tampered = `${h}.${p}.${s.at(0) === "A" ? "B" : "A"}${s.slice(1)}`;
+    assert.notEqual(tampered, real, "tampering must actually change the token");
     assert.equal(await decodeSession(tampered), null);
   });
 
@@ -82,7 +89,24 @@ describe("decodeSession", () => {
   });
 });
 
+describe("resolveTenantIdForPage", () => {
+  it("does not fall back to the demo tenant when pageId is missing", async () => {
+    const { resolveTenantIdForPage } = await import("../src/lib/db/auth");
+    assert.equal(await resolveTenantIdForPage(undefined), null);
+    assert.equal(await resolveTenantIdForPage(""), null);
+  });
+});
+
 describe("getSessionFromRequest", () => {
+  it("ignores x-admin-password (no header session injection)", async () => {
+    process.env.ADMIN_PASSWORD = "super-secret-admin";
+    const request = new Request("https://example.com", {
+      headers: { "x-admin-password": "super-secret-admin" },
+    });
+    assert.equal(await getSessionFromRequest(request), null);
+    delete process.env.ADMIN_PASSWORD;
+  });
+
   it("ignores the x-facetai-session header", async () => {
     const token = await encodeSession({
       userId: "u1",
