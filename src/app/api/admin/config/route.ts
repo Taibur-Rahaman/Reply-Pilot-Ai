@@ -7,6 +7,8 @@ import {
 } from "@/lib/bot/config";
 import { messengerConfigured } from "@/lib/bot/pipeline";
 import { setHandoff } from "@/lib/bot/handoff";
+import { getSessionFromRequest } from "@/lib/db/auth";
+import { DEFAULT_TENANT_ID } from "@/lib/db/types";
 
 export const runtime = "nodejs";
 
@@ -14,21 +16,22 @@ function unauthorized() {
   return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 }
 
-function checkAuth(request: Request): boolean {
+async function resolveAdminTenant(request: Request): Promise<string | null> {
+  const session = await getSessionFromRequest(request);
+  if (session) return session.tenantId;
+  if (process.env.NODE_ENV === "production") return null;
   const expected = getAdminPassword();
-  if (!expected) {
-    // If no password configured, allow only in non-production for local MVP.
-    return process.env.NODE_ENV !== "production";
-  }
-  // Header only — query params can leak into access logs / proxy caches.
   const header = request.headers.get("x-admin-password") || "";
-  return header === expected;
+  if (expected && header === expected) return DEFAULT_TENANT_ID;
+  if (!expected) return DEFAULT_TENANT_ID;
+  return null;
 }
 
 export async function GET(request: Request) {
-  if (!checkAuth(request)) return unauthorized();
+  const tenantId = await resolveAdminTenant(request);
+  if (!tenantId) return unauthorized();
 
-  const config = await loadBusinessConfig();
+  const config = await loadBusinessConfig(tenantId);
   return NextResponse.json({
     ok: true,
     config,
@@ -38,7 +41,8 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  if (!checkAuth(request)) return unauthorized();
+  const tenantId = await resolveAdminTenant(request);
+  if (!tenantId) return unauthorized();
 
   try {
     const body = (await request.json()) as Partial<BusinessConfig> & {
@@ -46,7 +50,7 @@ export async function PUT(request: Request) {
     };
 
     if (body.clearHandoffSenderId) {
-      await setHandoff(body.clearHandoffSenderId, false);
+      await setHandoff(body.clearHandoffSenderId, false, tenantId);
     }
 
     const patch: Partial<BusinessConfig> = {};
@@ -65,8 +69,11 @@ export async function PUT(request: Request) {
     if (typeof body.handoffEnabled === "boolean") {
       patch.handoffEnabled = body.handoffEnabled;
     }
+    if (typeof body.botEnabled === "boolean") {
+      patch.botEnabled = body.botEnabled;
+    }
 
-    const config = await saveBusinessConfig(patch);
+    const config = await saveBusinessConfig(patch, tenantId);
     return NextResponse.json({ ok: true, config });
   } catch (error) {
     console.error("[api/admin/config]", error);

@@ -26,4 +26,9 @@ export async function register() {
       "[startup] SUPER_ADMIN_EMAIL is not set — /api/admin/tenants (cross-tenant console) is unreachable until it is.",
     );
   }
+  if (isProduction && !process.env.TOKEN_ENCRYPTION_KEY?.trim()) {
+    console.warn(
+      "[startup] TOKEN_ENCRYPTION_KEY is not set — Page tokens cannot be encrypted at rest. Set it before connecting a live Facebook Page.",
+    );
+  }
 }

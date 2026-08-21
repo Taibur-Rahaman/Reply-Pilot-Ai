@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
+import { encryptSecretIfConfigured } from "@/lib/crypto";
 import { newId, nowIso, toIso } from "./ids";
 import { prisma } from "./prisma";
 import { writeAuditLog } from "./audit";
@@ -73,12 +74,37 @@ export async function verifyPassword(
 export async function authenticateUser(
   email: string,
   password: string,
-): Promise<SessionPayload | null> {
+  tenantHint?: string,
+): Promise<SessionPayload | "needs_tenant" | null> {
   const normalized = email.trim().toLowerCase();
 
-  const user = await prisma.user.findFirst({
+  const matches = await prisma.user.findMany({
     where: { email: normalized },
+    take: 5,
   });
+
+  let user: (typeof matches)[number] | undefined = matches[0];
+  if (matches.length > 1) {
+    if (!tenantHint) {
+      return "needs_tenant";
+    }
+    user =
+      matches.find(
+        (row) =>
+          row.tenantId === tenantHint ||
+          row.tenantId.endsWith(tenantHint),
+      ) ?? undefined;
+    if (!user) {
+      const bySlug = await prisma.tenant.findFirst({
+        where: { slug: tenantHint },
+        select: { id: true },
+      });
+      user = bySlug
+        ? matches.find((row) => row.tenantId === bySlug.id)
+        : undefined;
+    }
+    if (!user) return null;
+  }
 
   if (user) {
     const tenant = await prisma.tenant.findUnique({
@@ -180,20 +206,9 @@ export async function getSessionFromRequest(
   const match = cookie.match(/(?:^|;\s*)facetai_session=([^;]+)/);
   if (match?.[1]) return decodeSession(decodeURIComponent(match[1]));
 
-  // Legacy admin password header for /api/admin/config compatibility.
-  // Requires an explicitly configured ADMIN_PASSWORD — no unauthenticated
-  // fallback, even outside production, to avoid a silent open-admin backdoor.
-  const pwd = request.headers.get("x-admin-password") || "";
-  const expected = process.env.ADMIN_PASSWORD?.trim();
-  if (expected && pwd === expected) {
-    return {
-      userId: "user_demo_admin",
-      tenantId: DEFAULT_TENANT_ID,
-      email: DEMO_ADMIN_EMAIL,
-      name: "Demo Admin",
-      role: "admin",
-    };
-  }
+  // Intentionally no x-admin-password session injection. That header used to
+  // mint a full demo-admin session on every dashboard route. /api/admin/config
+  // still has its own header check for local admin-lite only.
   return null;
 }
 
@@ -379,7 +394,9 @@ export async function saveOAuthPageStub(input: {
       tenantId: input.tenantId,
       pageId: input.pageId,
       pageName: input.pageName,
-      accessToken: input.accessToken,
+      accessToken: input.accessToken
+        ? encryptSecretIfConfigured(input.accessToken)
+        : undefined,
       status: input.status || "pending",
       mode: input.mode || "oauth",
       permissionsOk: false,
@@ -392,14 +409,31 @@ export async function saveOAuthPageStub(input: {
   return mapPage(page);
 }
 
+/**
+ * Map a Meta Page ID to a tenant. Unknown pages return null — they must not
+ * fall through to the demo tenant (that leaked catalog/KB across businesses).
+ *
+ * Operator-managed dual-mode: if META_PAGE_ID is set and matches, use the
+ * demo/default tenant with META_PAGE_ACCESS_TOKEN.
+ */
 export async function resolveTenantIdForPage(
   pageId?: string,
-): Promise<string> {
-  if (!pageId) return DEFAULT_TENANT_ID;
+): Promise<string | null> {
+  if (!pageId) return null;
   const page = await prisma.pageConnection.findFirst({
     where: { pageId, status: "active" },
   });
-  return page?.tenantId || DEFAULT_TENANT_ID;
+  if (page?.tenantId) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: page.tenantId },
+      select: { disabled: true },
+    });
+    if (tenant?.disabled) return null;
+    return page.tenantId;
+  }
+  const envPageId = process.env.META_PAGE_ID?.trim();
+  if (envPageId && pageId === envPageId) return DEFAULT_TENANT_ID;
+  return null;
 }
 
 export async function listTenants(): Promise<
