@@ -7,6 +7,7 @@ export type AnalyticsSummary = {
   messages: number;
   products: number;
   wonLeads: number;
+  qualifiedLeads: number;
   conversionRate: number;
   byCrmStage: Record<string, number>;
   byTrackingStatus: Record<string, number>;
@@ -15,6 +16,10 @@ export type AnalyticsSummary = {
   todayOrders: number;
   todayRevenue: number;
   openLeads: number;
+  handoffsActive: number;
+  ordersToPack: number;
+  openComplaints: number;
+  responseVolume: number;
   /** Rough token/cost stub when AI_COST_PER_1K set or estimate */
   aiCostEstimate: number;
 };
@@ -43,6 +48,10 @@ export async function getAnalyticsSummary(
     openLeads,
     todayRevenueRow,
     outboundToday,
+    qualifiedLeads,
+    handoffsActive,
+    ordersToPack,
+    openComplaints,
   ] = await Promise.all([
     prisma.lead.count({ where: { tenantId } }),
     prisma.order.count({ where: { tenantId } }),
@@ -73,6 +82,27 @@ export async function getAnalyticsSummary(
     `,
     prisma.message.count({
       where: { tenantId, direction: "outbound", createdAt: { gte: today } },
+    }),
+    prisma.lead.count({
+      where: {
+        tenantId,
+        crmStage: { in: ["interested", "negotiating", "won"] },
+      },
+    }),
+    prisma.conversation.count({
+      where: { tenantId, handoffActive: true },
+    }),
+    prisma.order.count({
+      where: {
+        tenantId,
+        trackingStatus: { in: ["new", "confirmed"] },
+      },
+    }),
+    prisma.complaint.count({
+      where: {
+        tenantId,
+        status: { notIn: ["resolved", "closed"] },
+      },
     }),
   ]);
 
@@ -106,6 +136,7 @@ export async function getAnalyticsSummary(
     messages,
     products,
     wonLeads,
+    qualifiedLeads,
     conversionRate,
     byCrmStage,
     byTrackingStatus,
@@ -113,6 +144,10 @@ export async function getAnalyticsSummary(
     todayOrders: todayOrderCount,
     todayRevenue,
     openLeads,
+    handoffsActive,
+    ordersToPack,
+    openComplaints,
+    responseVolume: outboundToday,
     aiCostEstimate,
   };
 }

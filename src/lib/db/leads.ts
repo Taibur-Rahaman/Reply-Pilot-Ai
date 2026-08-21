@@ -179,6 +179,17 @@ export async function updateLeadStage(
     where: { id: leadId },
     data: { crmStage },
   });
+  await appendTimelineEvent({
+    tenantId,
+    leadId,
+    senderId: existing.senderId || undefined,
+    type: "lead",
+    title: `CRM stage → ${crmStage}`,
+    body: existing.crmStage !== crmStage
+      ? `${existing.crmStage} → ${crmStage}`
+      : crmStage,
+    refId: leadId,
+  }).catch(() => undefined);
   return mapLead(lead);
 }
 

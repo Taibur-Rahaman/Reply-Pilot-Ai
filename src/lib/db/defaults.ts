@@ -44,6 +44,7 @@ To track: "আমার অর্ডার কোথায়?" with phone number.`
     personality:
       "Warm Bangla-first sales moderator — helpful, concise, never pushy.",
     guardrailRules: { ...DEFAULT_GUARDRAIL_RULES },
+    botEnabled: true,
     updatedAt: new Date(0).toISOString(),
   };
 }

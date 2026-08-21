@@ -2,6 +2,9 @@
   "name": "replypilot-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "dev:lan": "next dev --hostname 0.0.0.0",
@@ -12,10 +15,12 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/**/*.test.mts\"",
     "seed": "node --import tsx scripts/seed.ts",
+    "worker": "node --import tsx scripts/worker.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:migrate-json": "node --import tsx scripts/migrate-json.ts",
+    "db:encrypt-tokens": "node --import tsx scripts/encrypt-tokens.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -37,6 +42,6 @@
     "prisma": "^6.19.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.5",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

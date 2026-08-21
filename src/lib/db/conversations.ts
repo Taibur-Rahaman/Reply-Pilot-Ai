@@ -137,7 +137,7 @@ export async function appendMessage(input: {
       conversationId: input.conversationId,
       direction: input.direction,
       text: input.text,
-      mid: input.mid,
+      mid: input.mid?.trim() || undefined,
       imageUrl: input.imageUrl,
       recognition: input.recognition ?? undefined,
       createdAt: now,
