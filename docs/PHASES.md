@@ -1,148 +1,186 @@
 # FaceTai — Phases & Build Order
 
-> **Status:** Current (Phase 0 documentation) — 2026-07-26  
+> **Status:** Current execution roadmap — 2026-08-21  
+> **Canonical execution:** [`REAL-APPROACH.md`](./REAL-APPROACH.md)  
 > **Related:** [`PRD.md`](./PRD.md) · [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) · [`ARCHITECTURE.md`](./ARCHITECTURE.md)  
-> **Conflict rule:** BUSINESS_DECISIONS + PRD win.
+> **Conflict rule:** BUSINESS_DECISIONS + PRD win on product decisions; REAL-APPROACH wins on current execution order.
 
-Status: **Done** · **In progress** · **Planned**
+Status: **Done** · **In progress** · **Planned** · **Scaffold**
 
 ---
 
 ## Executive snapshot
 
-| Phase | Focus | Status |
-| --- | --- | --- |
-| **0** | Documentation tree | **Done** (2026-07-26) |
-| **1** | Sales Agent MVP (Postgres, auth, RAG, handover, CRM, analytics) | **Planned** |
-| **2** | Sales Intelligence | **Planned** |
-| **3** | Omnichannel + Connect | **Planned** |
-| **4** | Automation | **Planned** |
-| **5** | Enterprise + marketplace | **Planned** |
+| Phase | Focus | Status | Real meaning |
+| --- | --- | --- | --- |
+| **0** | Documentation tree | **Done** | Historical foundation; no longer the active workstream |
+| **1** | Sales Agent MVP | **In progress** | Postgres/auth/RAG/dashboard foundation exists; verification + hardening + pilot completion remain |
+| **2** | Sales Intelligence | **Planned** | Start only after Phase 1 pilot acceptance |
+| **3** | Omnichannel + Connect | **Planned** | WhatsApp/IG/TG + self-serve Connect after Sales core proves stable |
+| **4** | Automation | **Planned** | Workflows/campaigns/tool actions |
+| **5** | Enterprise + marketplace | **Planned** | Billing/white-label/public API/agent packs |
 
-**Agent sequencing:** Sales Agent (Phase 1–2) → channel expansion (Phase 3) → automation (Phase 4) → Support/Booking/Property packs + marketplace (Phase 5).
+**Important:** Phase 1 is not a greenfield build anymore. The repository already contains a substantial implementation. The immediate job is to prove it, harden it, close the remaining acceptance gaps, and run a controlled pilot.
 
 ---
 
 ## Phase 0 — Documentation
 
-### Objectives
+### Status: Done / historical
 
-- Authoritative PRD v3.0 (AI Employee Platform).
-- Freeze BUSINESS_DECISIONS.
-- Publish PHASES, ARCHITECTURE, API, SECURITY, AI_GUARDRAILS.
-- Align README status table; keep PHASE2-AI-BOT as historical sketch.
-
-### Done when
-
-- [x] `docs/PRD.md` v3.0 with personas, MoSCoW FRs, agent model, Phase 0–5, AC
-- [x] `docs/BUSINESS_DECISIONS.md` locks (monolith, Postgres, Sales first, ethics, escalate, Bangla-first)
-- [x] `docs/PHASES.md` (this file)
-- [x] `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/SECURITY.md`, `docs/AI_GUARDRAILS.md`
-- [x] README status table matches Current/Partial/Planned
-- [x] PHASE2-AI-BOT notes PRD + BUSINESS_DECISIONS win on conflicts
-- [x] No application feature code in Phase 0 (docs only)
+The original Phase 0 established the product, business locks, architecture, security and roadmap. It should not be treated as the current implementation state.
 
 ---
 
-## Phase 1 — Sales Agent MVP
+## Phase 1 — Sales Agent Pilot MVP
 
-### Objectives
+### Status: **In progress**
 
-- JSON → PostgreSQL (+ pgvector) behind store adapter; migrate `facetai-db.json`.
-- Hashed auth, signed sessions, RBAC on dashboard APIs, audit log.
-- Real RAG (chunk/embed/retrieve); Prompt Builder with guardrail rules.
-- Escalation rules + inbox take/leave/notes; CRM timeline; analytics home KPIs.
-- Wire AI_GUARDRAILS into runtime (catalog tools, escalate keywords).
+### What is already implemented in the repository
 
-### Explicitly out of Phase 1 code
+- PostgreSQL + Prisma persistence
+- pgvector schema and RAG implementation
+- bcrypt password hashing
+- signed JWT session cookies
+- role helpers and dashboard authorization paths
+- tenant-scoped data repositories
+- audit-log model/repository and write paths
+- website chat persistence
+- Messenger webhook/reply pipeline
+- catalog, leads, orders and complaints persistence
+- knowledge upload/index/retrieval pipeline
+- dashboard analytics/repository layer
+- Docker Postgres/pgvector setup
+- seed and JSON migration tooling
 
-Live IG/WA/Telegram · workflows · billing portal · white-label · agent marketplace · Nest/FastAPI · Redis/BullMQ.
+### What remains before Pilot Ready
 
-### Done when
+#### Wave A — Verification
 
-- [ ] Fresh deploy with empty disk still has durable chat/CRM (Postgres)
-- [ ] Replies use retrieved KB chunks, not full dump
-- [ ] Human take/leave on webchat + Messenger; AI silent until release
-- [ ] Role `agent` cannot edit billing/team; `admin` can
-- [ ] Audit trail for config / handoff / team / KB changes
-- [ ] Seed demo works against Postgres
-- [ ] Docker Compose / `DATABASE_URL` documented in README
+- [ ] Clean install passes `npm install`
+- [ ] `npm run typecheck` passes
+- [ ] `npm run lint` passes
+- [ ] `npm test` passes
+- [ ] `npm run build` passes
+- [ ] Clean PostgreSQL + pgvector database can be initialized
+- [ ] Seed works from empty database
+- [ ] JSON migration works in disposable database
+- [ ] API route inventory is verified against actual source
 
-### Suggested implementation order (PRs)
+#### Wave B — Security and data-integrity hardening
 
-1. Postgres + repository cutover + migrate script  
-2. Auth/RBAC + audit logs  
-3. RAG + Prompt Builder  
-4. Handover + CRM timeline + analytics home  
-5. Hardening / seed / README  
+- [ ] Every dashboard mutation checks session + role + tenant
+- [ ] Cross-tenant access tests fail closed
+- [ ] Webhook page-to-tenant resolution fails closed rather than silently falling back to the demo tenant
+- [ ] Session secret production requirements are verified
+- [ ] Privileged changes have audit coverage
+- [ ] Public endpoints have tested abuse/rate-limit behavior
+- [ ] Meta signature verification is required/configured for production
+- [ ] Page/access tokens are protected appropriately for production
+- [ ] KB assets are moved from ephemeral local filesystem to durable production storage
+- [ ] Privacy/delete behavior is verified
+
+#### Wave C — Sales Agent acceptance
+
+- [ ] KB upload → extraction → chunk → embedding → retrieval works end-to-end
+- [ ] Keyword fallback is clearly identified as degraded mode, not equivalent to vector RAG
+- [ ] Catalog recommendations are grounded in tenant catalog
+- [ ] Order confirmation and persistence are reliable
+- [ ] Refund/legal/serious complaint/uncertain cases escalate
+- [ ] Human take silences AI until release
+- [ ] Human release returns control to AI
+- [ ] Agent notes become CRM timeline events
+- [ ] Unified customer/lead timeline is coherent
+- [ ] Dashboard KPIs reconcile with database records
+- [ ] Prompt Builder hard rules cannot be overridden by personality text
+
+#### Wave D — Controlled pilot
+
+- [ ] One tenant can onboard without developer database editing
+- [ ] One tenant can configure catalog + knowledge + bot behavior
+- [ ] Website chat works in production
+- [ ] Messenger works with real Meta configuration
+- [ ] Observability covers webhook errors, AI errors and database failures
+- [ ] Rollback and secret rotation procedures are tested
+- [ ] Pilot metrics are recorded
+
+### Phase 1 exit criteria
+
+Phase 1 is **Pilot Ready** only when all P0/P1 items above pass. It becomes **Production Ready** only after controlled pilot evidence is positive.
 
 ---
 
 ## Phase 2 — Sales Intelligence
 
+### Status: Planned
+
+Only start after Phase 1 pilot acceptance.
+
 ### Objectives
 
-- Lead score, richer customer memory fields.
-- Follow-up scheduler (capacity trigger for **Redis/queue** if volume needs it).
-- Intent / sentiment / objection handling; playbooks; personalities.
+- Lead scoring
+- richer customer memory fields
+- policy-safe follow-up scheduler
+- intent / sentiment / objection handling
+- playbooks and personalities
+- measured AI cost controls
 
-### Done when
+### Redis rule
 
-- [ ] Lead score visible on CRM + used in prioritization
-- [ ] Memory fields persist across sessions and influence replies
-- [ ] Follow-ups run on schedule without double-send; Meta policy respected
-- [ ] At least one playbook + personality selectable per tenant
-- [ ] Redis introduced **only if** job volume justifies (document trigger in deploy notes)
+Do not add Redis just because follow-up exists on the roadmap. Add a queue only when measured job volume or webhook load exceeds the safe request-path capacity.
 
 ---
 
 ## Phase 3 — Omnichannel
 
+### Status: Planned / Connect scaffold exists
+
 ### Objectives
 
-- Live Instagram / WhatsApp / Telegram adapters (send + receive).
-- Unified inbox polish.
-- FaceTai Connect (F39) Done: Login → Select Page → Connect; no webhook paste.
+- WhatsApp Cloud API
+- Instagram and/or Telegram adapters
+- unified inbox hardening
+- production self-serve Meta Connect
 
-### Done when
+### Gate
 
-- [ ] At least WhatsApp Cloud live on shared bot core
-- [ ] IG and/or Telegram meet Must/Should from PRD or deferred with date
-- [ ] Connect happy-path median ≤ ~2 minutes on test Page
-- [ ] Tokens encrypted per tenant; env-token dual-mode for demo still works
-- [ ] Marketing may claim “Connect in ~2 minutes” only after this checklist
+Do not market "Connect in ~2 minutes" until the actual OAuth/Page selection/subscription path is tested against a real test Page and tenant isolation is verified.
 
 ---
 
 ## Phase 4 — Automation
 
+### Status: Planned
+
 ### Objectives
 
-- Workflow builder (IF/THEN), campaigns, email/SMS.
-- Richer agent tool actions (catalog update, order status, tags).
+- workflow builder
+- campaigns
+- email/SMS
+- richer tenant-scoped tool actions
 
-### Done when
+### Gate
 
-- [ ] Tenant can create a workflow without code deploy
-- [ ] Campaign send respects opt-out + channel policy
-- [ ] Tool actions audited and tenant-scoped
+Every workflow and tool action must be tenant-scoped, permission-checked and audited.
 
 ---
 
 ## Phase 5 — Enterprise
 
+### Status: Planned
+
 ### Objectives
 
-- Hard multi-tenant isolation review, usage billing, white-label.
-- Public API / webhooks, SSO, compliance hardening.
-- Agent marketplace: Support, Booking, **Property (RentBee)** — shared core, domain tools only.
+- hard multi-tenant isolation review
+- usage metering and billing
+- white-label
+- public API and signed webhooks
+- SSO/compliance hardening
+- agent marketplace / installable domain packs
 
-### Done when
+### Gate
 
-- [ ] Usage metering + Super Admin billing slice
-- [ ] WL branding for agency tenants (or deferred with date)
-- [ ] Public API auth + webhook signed deliveries
-- [ ] At least one non-Sales agent pack (e.g. Support or Property) installable on shared core
+Enterprise work starts only after the core Sales Agent has real pilot evidence and operational controls.
 
 ---
 
@@ -150,9 +188,24 @@ Live IG/WA/Telegram · workflows · billing portal · white-label · agent marke
 
 | Trigger | Action |
 | --- | --- |
-| Follow-up / campaign jobs &gt; what request-path can safely do | Add Redis + worker (BullMQ or equivalent) |
-| Webhook fan-out timeouts under load | Queue inbound normalize → process |
-| Phase 1 | **Do not** add Redis |
+| Phase 1 | **Do not add Redis** |
+| Follow-up/campaign jobs exceed safe request-path capacity | Add Redis + worker |
+| Webhook fan-out creates ACK/time-out pressure | Queue after verification/signature |
+| Single-instance cron is sufficient | Prefer the simpler solution |
+
+---
+
+## Engineering order from this point
+
+1. Baseline verification
+2. Security / tenant isolation matrix
+3. RAG evaluation
+4. Handoff + CRM acceptance
+5. Analytics reconciliation
+6. Durable file storage
+7. Messenger pilot hardening
+8. Controlled pilot
+9. Phase 2 decision from measured gaps
 
 ---
 
@@ -160,4 +213,5 @@ Live IG/WA/Telegram · workflows · billing portal · white-label · agent marke
 
 | Date | Notes |
 | --- | --- |
-| 2026-07-26 | Phase 0 authored; Phases 1–5 documented from plan |
+| 2026-07-26 | Phase 0 roadmap authored |
+| 2026-08-21 | Rebased execution status on actual repository implementation; Phase 1 is now In Progress with verification/hardening/pilot waves |
