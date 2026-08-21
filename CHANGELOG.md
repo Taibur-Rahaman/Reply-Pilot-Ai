@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased] — Real implementation approach — 2026-08-21
+
+Rebased the documentation set on the actual repository implementation. This is a documentation/roadmap alignment change; it does not claim the remaining pilot gates are complete.
+
+### Documentation
+
+- Added `docs/REAL-APPROACH.md` as the canonical execution strategy.
+- Added `docs/DOCUMENTATION-STATUS.md` as the documentation source-of-truth map.
+- Reclassified Phase 1 from documentation/planned language to **In Progress**: the Postgres/auth/RAG/dashboard foundation exists, while verification, hardening, durability and pilot acceptance remain.
+- Updated architecture, API, security, guardrails, business-decision status, README and handbook index to use explicit implementation vocabulary.
+- Explicitly documented that local filesystem KB storage is not a durable production storage strategy.
+- Explicitly documented that keyword RAG fallback is degraded mode, not equivalent to semantic vector retrieval.
+- Added a no-duplicate-endpoint rule: verify existing behavior before adding routes merely because an old roadmap listed them.
+
 ## [Unreleased] — Production hardening & rebrand — 2026-08-03
 
 Rebranded from the internal codename **FaceTai** to **ReplyPilot AI** across user-facing copy, and hardened the app for production. No breaking changes to data or existing sessions.
