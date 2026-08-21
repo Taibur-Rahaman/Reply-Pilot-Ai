@@ -4,7 +4,9 @@
 > (repository codename `FaceTai`) — an AI Employee platform for Bangladeshi SMBs.
 >
 > **Version:** `0.1.0` · **Build:** Next.js 16.2.10 / React 19.2.4 / Prisma 6.19 / PostgreSQL + pgvector
-> **Doc status:** Living document · Last verified against `main` @ `b46798c` + working tree
+> **Doc status:** Living document · Rebased to the 2026-08-21 real implementation approach
+> **Canonical execution:** [`../REAL-APPROACH.md`](../REAL-APPROACH.md)
+> **Documentation map:** [`../DOCUMENTATION-STATUS.md`](../DOCUMENTATION-STATUS.md)
 
 ---
 
@@ -51,37 +53,41 @@ docs/handbook/
 ├── 10  operations-runbook.md ....... errors, retries, limits, troubleshooting
 │
 └── ── DIRECTION ─────────────────────────────────────────────────
-    11  scorecard-and-roadmap.md .... scores, 100 improvements, roadmap
+    11  scorecard-and-roadmap.md .... scores, improvements, roadmap
 ```
 
 ---
 
 ## Truth policy
 
-This handbook distinguishes three states. **Nothing is described as shipped
-unless it is verifiably in the codebase.**
+The handbook must distinguish implementation from intent. **A file, model, route,
+or UI alone does not make a feature shipped.** Use the following vocabulary:
 
 | Badge | Meaning | Example |
 | --- | --- | --- |
-| 🟢 **SHIPPED** | Code exists, runs, verified by reading source | Messenger webhook signature verification |
-| 🟡 **PARTIAL** | Code exists but is a scaffold or has a known gap | Facebook OAuth Connect (no webhook subscribe) |
-| 🔴 **SPEC** | Designed here, no code yet | WhatsApp Cloud API embedded signup |
+| 🟢 **IMPLEMENTED** | Behavior exists in code and has appropriate verification | Postgres persistence, signed session, RAG path |
+| 🟡 **PARTIAL** | Behavior exists but a required acceptance or production control is missing | Messenger production hardening |
+| 🟠 **SCAFFOLD** | Shape exists primarily for future integration | Meta Connect / OAuth scaffold |
+| 🔵 **PILOT-READY** | End-to-end controlled deployment criteria pass | Sales Agent pilot |
+| 🔴 **PLANNED** | Intentionally not implemented | WhatsApp Cloud API |
+| ⚫ **HISTORICAL** | Reference only; cannot override current decisions | Old Phase 0 sketches |
 
-Where a chapter documents a **gap**, it carries a `GAP-nn` identifier so it can
-be tracked in [`11-scorecard-and-roadmap.md`](./11-scorecard-and-roadmap.md).
+Where a chapter documents a gap, keep a stable `GAP-nn` identifier so it can be
+tracked in [`11-scorecard-and-roadmap.md`](./11-scorecard-and-roadmap.md).
 
 ---
 
 ## The one-paragraph version
 
-ReplyPilot AI is a multi-tenant Next.js monolith. A Facebook Page (or a website
-chat widget) sends a customer message to a Route Handler. The handler verifies
-the sender, resolves which tenant owns the Page, deduplicates the event, then
-runs a deterministic pipeline: human-handoff check → escalation guardrails →
-complaint detection → image product match → order tracking → order capture →
-RAG retrieval → LLM (or rule-based fallback) → send reply → persist to Postgres.
-Business owners watch and steer all of this from a dashboard with 14 sections
-and four RBAC roles.
+ReplyPilot AI is a multi-tenant Next.js monolith backed by PostgreSQL/Prisma and
+pgvector. A Facebook Page or website chat path sends a customer message to a
+Route Handler. The application resolves tenant context, deduplicates Messenger
+events, checks human handoff and guardrails, retrieves tenant-scoped knowledge,
+uses catalog/order data, generates an LLM or rules-based response, and persists
+conversation/CRM records. Business owners manage the system through the
+Postgres-backed dashboard with four RBAC roles. The current milestone is to
+verify, harden and pilot this core — not to rewrite the architecture or add all
+future channels at once.
 
 ---
 
@@ -89,9 +95,12 @@ and four RBAC roles.
 
 | Thing | Where |
 | --- | --- |
+| Current implementation strategy | [`../REAL-APPROACH.md`](../REAL-APPROACH.md) |
+| Documentation source-of-truth | [`../DOCUMENTATION-STATUS.md`](../DOCUMENTATION-STATUS.md) |
 | Run it locally | [`../../INSTALLATION.md`](../../INSTALLATION.md) |
 | Endpoint cheat-sheet | [`04-api-reference.md`](./04-api-reference.md) |
 | Why my bot isn't replying | [`10-operations-runbook.md#troubleshooting-decision-tree`](./10-operations-runbook.md#troubleshooting-decision-tree) |
 | Design tokens / Figma prompts | [`08-design-system.md`](./08-design-system.md) |
 | Launch readiness scores | [`11-scorecard-and-roadmap.md`](./11-scorecard-and-roadmap.md) |
-| Legacy phase docs | [`../PRD.md`](../PRD.md), [`../PHASES.md`](../PHASES.md) |
+| Product authority | [`../PRD.md`](../PRD.md) |
+| Business locks | [`../BUSINESS_DECISIONS.md`](../BUSINESS_DECISIONS.md) |

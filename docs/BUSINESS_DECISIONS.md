@@ -1,9 +1,10 @@
 # FaceTai — Frozen Business Decisions
 
-> **Status:** FROZEN — 2026-07-26 (v1.0 / Phase 0)  
+> **Status:** FROZEN decisions + execution status — 2026-08-21  
 > **Product:** FaceTai — AI Employee Platform  
-> **Authority:** This file + [`PRD.md`](./PRD.md) supersede checklist rows, README claims, and [`PHASE2-AI-BOT.md`](./PHASE2-AI-BOT.md) on conflicts.  
-> Changes require explicit founder/product approval and a version bump.
+> **Authority:** This file + [`PRD.md`](./PRD.md) supersede checklist rows, README claims, and [`PHASE2-AI-BOT.md`](./PHASE2-AI-BOT.md) on business/product conflicts.  
+> **Execution:** [`REAL-APPROACH.md`](./REAL-APPROACH.md) defines the current engineering sequence without changing these business locks.  
+> Changes to the decisions below require explicit founder/product approval and a version bump.
 
 ---
 
@@ -19,7 +20,7 @@ First shipped agent = Sales Agent.
 Other agent types are Planned — not separate product forks.
 
 Never deceive buyers. Never invent stock, price, or discounts.
-Escalate refunds, legal, and low-confidence cases to humans.
+Escalate refunds, legal, angry/abuse, and low-confidence cases to humans.
 Bangla-first for Bangladesh.
 ```
 
@@ -29,30 +30,52 @@ Bangla-first for Bangladesh.
 
 | ID | Decision | Choice | Rejected / deferred |
 | --- | --- | --- | --- |
-| **DOC-1** | Workstream | **Docs first (Phase 0), then Phase 1 MVP code** | Parallel big-bang rewrite |
+| **DOC-1** | Workstream | **Docs first, then implementation; now execution is verification/hardening/pilot** | Parallel big-bang rewrite |
 | **DOC-2** | Architecture | **Evolve in-place: Next.js App Router monolith** | NestJS / FastAPI split |
-| **DOC-3** | Data store | **PostgreSQL** (replace JSON file behind store adapter) | JSON-only production; serverless disk as sole store |
+| **DOC-3** | Data store | **PostgreSQL** (implemented; JSON is migration/legacy input only) | JSON-only production; serverless disk as sole store |
 | **DOC-4** | Vectors | **pgvector** on Postgres for RAG embeddings | Separate vector SaaS required for Phase 1 |
-| **DOC-5** | Queues / Redis | **Not in Phase 1** — add when PHASES capacity trigger (e.g. follow-up jobs Phase 2+) | Redis/BullMQ on day one |
-| **DOC-6** | First agent | **Sales Agent only** for Phase 1 ship | Support / Booking / Property as Phase 1 |
+| **DOC-5** | Queues / Redis | **Not in current Sales Agent milestone** — add only on measured capacity trigger | Redis/BullMQ on day one |
+| **DOC-6** | First agent | **Sales Agent only** for current pilot | Support / Booking / Property as current milestone |
 | **DOC-7** | Selling ethics | **No deceptive selling** — no fake scarcity, invented discounts, or pressure that contradicts catalog/KB | Dark-pattern sales scripts |
-| **DOC-8** | Escalation | **Always escalate** refunds, legal, angry/abuse, and **confidence &lt; 70%** to human inbox | Fully autonomous dispute/refund settlement |
+| **DOC-8** | Escalation | **Always escalate** refunds, legal, serious complaint/abuse, and meaningful uncertainty to human inbox | Fully autonomous dispute/refund settlement |
 | **DOC-9** | Language / market | **Bangla-first Bangladesh** (BN default bot; EN on user language; Banglish/slang OK) | English-only global-first MVP |
-| **DOC-10** | Positioning | **AI Employee Platform** (shared core + hireable agents) | Chatbot-only or “clone LazyChat feature list” positioning |
-| **DOC-11** | Scope now | **Phase 0 docs + Phase 1 code only** in active build; Phases 2–5 documented in PHASES.md | Implementing Phase 3–5 in the same MVP PR |
-| **DOC-12** | Channels Phase 1 | **Website chat + Messenger** (env tokens OK); Connect F39 = Phase 3 SaaS gate | Live IG/WA/Telegram required for Phase 1 exit |
+| **DOC-10** | Positioning | **AI Employee Platform** (shared core + hireable agents) | Chatbot-only or clone positioning |
+| **DOC-11** | Scope now | **Sales Agent pilot completion only**; Phase 2–5 remain roadmap | Implementing Phase 3–5 in same MVP |
+| **DOC-12** | Channels now | **Website chat + Messenger** for pilot; Connect/WA/IG/TG require later gates | Live omnichannel required before Sales pilot |
+
+---
+
+## Current execution status
+
+The decisions above are unchanged, but the implementation has moved beyond the original Phase-0 state.
+
+| Capability | Reality | Next gate |
+| --- | --- | --- |
+| PostgreSQL/Prisma | Implemented | Clean DB + migration/seed verification |
+| Auth | bcrypt + signed JWT implemented | Endpoint security test |
+| RBAC | Role helpers/dashboard gates implemented | Complete mutation matrix |
+| Tenant isolation | Tenant-scoped repositories implemented | Negative cross-tenant tests |
+| Audit | Model/repository/write paths implemented | Coverage verification |
+| RAG | Vector + keyword fallback implemented | Retrieval/grounding evaluation |
+| Handoff/CRM | Data/UI paths exist | End-to-end acceptance |
+| Analytics | Repository/UI paths exist | KPI reconciliation |
+| Messenger | Webhook/reply path exists | Real Meta pilot + signature/tenant tests |
+| Connect | Demo/OAuth scaffold | Keep non-production until full gate |
+| KB file storage | Local filesystem today | Durable storage before pilot |
+
+The implementation status must not be used to change the product decision locks.
 
 ---
 
 ## Role mapping (RBAC)
 
-| Product persona | Dashboard role key | Phase 1 expectation |
+| Product persona | Dashboard role key | Current expectation |
 | --- | --- | --- |
-| Business Owner | `admin` | Full tenant config, team, KB, billing-facing settings |
-| Sales Manager | `manager` | Pipeline, analytics, playbooks; limited billing |
-| Human Agent | `agent` / `moderator` | Inbox take/leave/notes; **cannot** edit team/billing |
-| Super Admin | platform `/admin` | Tenant list + disable (billing later) |
-| Customer | (channel user) | No dashboard; chat only |
+| Business Owner | `admin` | Tenant config, team, KB, catalog and operational settings |
+| Sales Manager | `manager` | Pipeline and analytics; limited privileged settings |
+| Human Agent | `agent` / `moderator` | Inbox take/leave/notes; cannot manage restricted team/security settings |
+| Super Admin | platform `/admin` | Tenant lifecycle/operations; billing later |
+| Customer | channel user | No dashboard; chat only |
 
 ---
 
@@ -60,11 +83,11 @@ Bangla-first for Bangladesh.
 
 See [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md). Summary locks:
 
-1. **Stock / price / discounts** — only from catalog DB (or explicit KB fact); otherwise refuse or escalate.
-2. **Logistics** — only real courier/status fields; never invent tracking.
-3. **Estimates ≠ guarantees** — delivery/ETA language must be estimate-qualified.
-4. **PII** — collect phone/address with purpose; consent before unnecessary PII storage.
-5. **Human escalate** — refund, legal, complaint severity, confidence &lt; 70%, explicit “human” ask.
+1. Stock / price / discounts only from tenant catalog or explicit grounded KB fact.
+2. Logistics only from real order/provider data.
+3. Estimates are not guarantees.
+4. Collect PII only with purpose and consent where required.
+5. Human escalation for refunds/legal/serious complaint/explicit human request/meaningful uncertainty.
 
 ---
 
@@ -73,10 +96,10 @@ See [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md). Summary locks:
 | Layer | Lock |
 | --- | --- |
 | App | Next.js App Router + TypeScript + Tailwind |
-| Persistence | Postgres via repository behind `src/lib/db/*` (Prisma default) |
-| Local DB | Docker Compose `postgres`; prod managed Postgres (`DATABASE_URL`) |
-| AI | Existing OpenAI-compatible client; rules fallback without key |
-| Hosting | Prefer durable DB always; ephemeral FS never sole source of truth |
+| Persistence | Postgres via Prisma repositories under `src/lib/db/*` |
+| Local DB | Docker Compose Postgres + pgvector |
+| AI | OpenAI-compatible endpoint with rules/keyword fallback |
+| Hosting | Durable database always; application filesystem never sole production store |
 | Port bind | `0.0.0.0:$PORT` on Render-class Linux hosts |
 
 ---
@@ -84,10 +107,11 @@ See [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md). Summary locks:
 ## Explicit non-goals until unlocked
 
 - Microservice split (Nest/FastAPI)
-- Redis/BullMQ before Phase 2 capacity need
+- Redis/BullMQ before measured capacity need
 - Agent marketplace / white-label / SSO (Phase 5)
-- Property Agent (RentBee) before Phase 5 partner/marketplace track
-- Marketing “Connect in 2 minutes” before F39 Done criteria
+- Property Agent (RentBee) before the later marketplace/agent-pack track
+- Marketing “Connect in 2 minutes” before F39 production criteria
+- WhatsApp/Instagram/Telegram before Sales Agent pilot acceptance
 
 ---
 
@@ -96,3 +120,4 @@ See [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md). Summary locks:
 | Version | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-07-26 | Phase 0 freeze: monolith, Postgres, Sales first, ethics + escalate + Bangla-first |
+| 1.1 | 2026-08-21 | Decision locks preserved; execution status updated to reflect the implemented Postgres/auth/RAG foundation and pilot-first approach |

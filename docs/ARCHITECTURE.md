@@ -1,6 +1,7 @@
 # FaceTai — Architecture
 
-> **Status:** Target architecture (Phase 0) — 2026-07-26  
+> **Status:** Implemented baseline + production-hardening target — 2026-08-21  
+> **Canonical execution:** [`REAL-APPROACH.md`](./REAL-APPROACH.md)  
 > **Locks:** [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) DOC-2…DOC-5  
 > **Related:** [`PRD.md`](./PRD.md) · [`PHASES.md`](./PHASES.md) · [`API.md`](./API.md)
 
@@ -9,10 +10,11 @@
 ## Principles
 
 1. **One Next.js monolith** — App Router UI + Route Handlers; no Nest/FastAPI split.
-2. **Postgres is source of truth** — replace JSON file behind a stable store adapter.
-3. **Thin channel adapters** — Messenger / web / later WA-IG-TG only differ at send/receive.
-4. **Shared agent runtime** — Sales first; other agents swap prompt/tools later.
-5. **Redis later** — only on PHASES capacity trigger (not Phase 1).
+2. **Postgres is the production source of truth** — the Prisma/Postgres implementation is already in the repository; JSON is migration/legacy input only.
+3. **Thin channel adapters** — Messenger and web normalize into shared conversation/runtime behavior; WA/IG/TG remain future adapters.
+4. **Shared agent runtime** — Sales first; other agents reuse the same core later.
+5. **Redis later** — only on the measured PHASES capacity trigger.
+6. **Code + tests define implementation status** — a model or UI alone does not make a feature production-ready.
 
 ---
 
@@ -30,15 +32,16 @@ flowchart LR
     API[Route Handlers]
     Dash[Dashboard UI]
     Runtime[Agent runtime]
-    Store[Store adapter]
+    Store[Prisma repositories]
   end
 
   subgraph data [Data]
     PG[(PostgreSQL + pgvector)]
+    Files[Durable production object storage - required for pilot]
     Sheet[Optional Sheet webhooks]
   end
 
-  LLM[OpenAI-compatible LLM]
+  LLM[OpenAI-compatible LLM / embeddings]
 
   Web --> API
   Msg --> API
@@ -49,54 +52,66 @@ flowchart LR
   Runtime --> LLM
   Store --> PG
   Runtime --> Sheet
+  Files --> PG
 ```
 
 ---
 
 ## Stack
 
-| Layer | Choice | Notes |
+| Layer | Choice | Current reality |
 | --- | --- | --- |
-| Framework | Next.js App Router + TypeScript + Tailwind | Evolve existing `FaceTai` app |
-| Auth | Signed session cookie; hashed passwords (Phase 1) | Replace base64/plaintext demo |
-| DB | PostgreSQL | `DATABASE_URL`; Docker Compose locally |
-| ORM | Prisma (default) or Drizzle | Behind `src/lib/db` |
-| Vectors | pgvector | Embeddings for RAG |
-| AI | Existing AI client + rules fallback | No vendor lock in adapter |
-| Hosting | Vercel / Render / Node host | Bind `0.0.0.0:$PORT` where required; ephemeral FS ≠ store |
-| Queue | None in Phase 1 | Redis/BullMQ Phase 2+ if needed |
+| Framework | Next.js App Router + TypeScript + Tailwind | Implemented |
+| Auth | bcrypt + signed JWT HTTP-only cookie | Implemented; security verification still required |
+| DB | PostgreSQL | Implemented through Prisma |
+| ORM | Prisma | Implemented under `src/lib/db/*` |
+| Vectors | pgvector | Implemented with keyword fallback |
+| AI | OpenAI-compatible endpoint + rules fallback | Implemented |
+| Hosting | Durable Node/managed Postgres host | Deployable; production storage/observability still need pilot gate |
+| Queue | None | Correct for current milestone |
+| File storage | Local `data/uploads` today | **Not production durable; must be replaced before pilot** |
 
 ---
 
-## Store adapter
+## Persistence architecture
 
-**Today:** `src/lib/db/store.ts` → `data/facetai-db.json`.
+The old JSON store is no longer the production architecture.
 
-**Target:** Keep call sites in `src/lib/db/*` stable; swap implementation to Prisma/Postgres.
+Current repository structure uses Prisma-backed domain modules such as:
 
-```
+```text
 src/lib/db/
-  types.ts          # domain types
-  store.ts          # adapter interface / implementation
-  repositories/     # optional split by entity
+  auth.ts
+  conversations.ts
+  leads.ts
+  orders.ts
+  knowledge.ts
+  rag.ts
+  analytics.ts
+  audit.ts
+  comments.ts
+  complaints.ts
+  ecommerce.ts
+  invoice.ts
+  ...
 ```
 
-**Migrate:** one-shot script `facetai-db.json` → Postgres. Dual-read cutover acceptable briefly; JSON not production SoT after Phase 1 Done.
+The JSON migration script remains for legacy/demo migration. It must not become a second production source of truth.
 
-**Tenancy:** every business row carries `tenantId`; queries default-deny cross-tenant.
+**Tenancy:** every business row carries `tenantId`; every authenticated dashboard mutation must derive tenant scope from the trusted session and reject mismatches.
 
 ---
 
 ## Channel adapters
 
-| Channel | Inbound | Outbound | Phase |
+| Channel | Inbound | Outbound | Current status |
 | --- | --- | --- | --- |
-| Website | `POST /api/webchat` | Same response / poll as designed | Current → harden Phase 1 |
-| Messenger | `GET/POST /api/messenger/webhook` | Meta Graph Send | Current |
-| WhatsApp / IG / Telegram | Webhooks (future) | Provider send APIs | Phase 3 |
-| Connect | OAuth + subscribe Page | — | Phase 3 Done |
+| Website | `POST /api/webchat` | Response | Implemented; harden public tenant/embed model |
+| Messenger | `GET/POST /api/messenger/webhook` | Meta Graph Send | Implemented; production signature/configuration test required |
+| WhatsApp / IG / Telegram | Future webhooks | Provider APIs | Planned |
+| Connect | Demo/OAuth scaffold | — | Scaffold; not a production SaaS promise |
 
-Adapters normalize to a common envelope: `{ tenantId, channel, threadId, userId, text, attachments, metadata }` → agent runtime.
+Adapters should normalize to a common envelope such as `{ tenantId, channel, threadId, userId, text, attachments, metadata }` before agent-specific processing.
 
 ---
 
@@ -104,41 +119,64 @@ Adapters normalize to a common envelope: `{ tenantId, channel, threadId, userId,
 
 ```mermaid
 flowchart TD
-  inbound[Normalized inbound] --> detect[Language / intent / sentiment]
-  detect --> memory[Customer memory]
-  memory --> rag[pgvector RAG top-k]
-  rag --> strategy[Sales strategy + guardrails]
-  strategy --> llm[LLM or rules]
-  llm --> respond[Respond + persist]
-  respond --> crm[CRM timeline]
-  respond --> handoff{Escalate?}
+  inbound[Normalized inbound] --> detect[Language / intent / complaint signals]
+  detect --> memory[Conversation + customer context]
+  memory --> rag[pgvector RAG / keyword fallback]
+  rag --> strategy[Sales strategy + hard guardrails]
+  strategy --> tools[Catalog / order tools]
+  tools --> llm[LLM or rules fallback]
+  llm --> persist[Persist response + timeline]
+  persist --> handoff{Escalate / human take?}
   handoff -->|yes| human[Human inbox]
   handoff -->|no| done[Continue]
 ```
 
-| Module | Responsibility |
-| --- | --- |
-| Detect | BN/EN/Banglish; intent; sentiment; complaint keywords |
-| Memory | Prior orders, prefs, open leads (Phase 2 deepens fields) |
-| RAG | Retrieve chunks; never dump entire KB |
-| Strategy | Sales playbook + [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md) |
-| Tools | Catalog lookup, order create/status — DB-backed only |
-| Handoff | Confidence &lt; 70%, refund/legal/angry, explicit human ask |
-| CRM | Append timeline events |
+### Grounding order
 
-**Agent packs (later):** same runtime; different system prompt + tool allowlist (Support, Booking, Property).
+1. Hard guardrails
+2. Tenant Prompt Builder personality
+3. Retrieved tenant-scoped knowledge
+4. Catalog/order tool results
+5. Conversation context
+6. LLM generation
+
+If factual evidence is missing, the agent must refuse or escalate rather than invent.
 
 ---
 
-## RAG (Phase 1)
+## RAG implementation
 
-1. Upload → extract text  
-2. Chunk (stable size/overlap)  
-3. Embed → store in pgvector  
-4. On reply: query top-k by tenant + similarity  
-5. Inject chunks into prompt; cite/refuse when empty  
+The repository now has a real first implementation:
 
-Replace today’s FAQ/upload prompt stuffing.
+1. Upload/extract text
+2. Chunk into overlapping segments
+3. Call configured embeddings endpoint when available
+4. Store vectors in `KbChunk.embedding`
+5. Query pgvector top-k by tenant
+6. Fall back to keyword scoring if embeddings are unavailable/fail
+7. Inject a bounded retrieved context into the reply pipeline
+
+This is **implemented**, but RAG quality is not considered production-proven until Wave A/C evaluation measures retrieval accuracy and grounding behavior.
+
+### Known limitation
+
+KB files are currently written under the application filesystem. That is acceptable for local development but **not** a durable production storage strategy on ephemeral hosts. Pilot deployment must use durable object storage or an equivalent persistent volume.
+
+---
+
+## Security boundaries
+
+- Session identity comes from a signed HTTP-only cookie.
+- Passwords are bcrypt hashes.
+- Dashboard role helpers provide `admin > manager > moderator > agent` gates.
+- Repository queries are tenant-scoped.
+- Audit logs exist for privileged changes.
+- Messenger supports Meta signature verification when configured.
+- Public endpoints use rate limiting.
+
+These controls are implemented in meaningful portions of the codebase but still require systematic endpoint-by-endpoint verification before production claims.
+
+See [`SECURITY.md`](./SECURITY.md).
 
 ---
 
@@ -146,12 +184,10 @@ Replace today’s FAQ/upload prompt stuffing.
 
 | Situation | Decision |
 | --- | --- |
-| Phase 1 MVP | **No Redis** |
-| Scheduled follow-ups / campaigns overwhelm request path | Add Redis + worker |
-| Webhook processing must ACK fast under spike | Queue after verify/signature |
-| Simple cron on one always-on instance enough | Prefer that first |
-
-Document the trigger in deploy notes when introduced ([`PHASES.md`](./PHASES.md)).
+| Current Sales Agent milestone | **No Redis** |
+| Scheduled follow-ups/campaigns exceed safe request path | Add Redis + worker |
+| Webhook processing cannot ACK reliably under measured load | Queue after verification |
+| Simple cron on one always-on instance is enough | Prefer cron first |
 
 ---
 
@@ -159,17 +195,24 @@ Document the trigger in deploy notes when introduced ([`PHASES.md`](./PHASES.md)
 
 | Env | Store | Notes |
 | --- | --- | --- |
-| Local | Docker Postgres | `npm run seed` against DB |
-| Preview / prod | Managed Postgres | Neon / Supabase / Render Postgres |
-| Optional | `LEADS_WEBHOOK_URL` / `ORDERS_WEBHOOK_URL` | Sheet familiarity for BD ops |
+| Local | Docker Postgres + pgvector | Seed against empty DB |
+| Preview / prod | Managed Postgres | `DATABASE_URL` |
+| Files | Durable object storage required for pilot | Do not rely on ephemeral disk |
+| Optional | `LEADS_WEBHOOK_URL` / `ORDERS_WEBHOOK_URL` | Google Sheet bridge for BD ops |
 
-**Never:** rely only on container/local disk for conversations, CRM, or KB in production.
+**Never:** rely only on container/local disk for conversations, CRM, or production KB assets.
 
 ---
 
-## Security boundaries (summary)
+## Current architecture decision
 
-See [`SECURITY.md`](./SECURITY.md): session auth, RBAC, tenant filters, secrets in env, encrypted Page tokens (Connect), PII minimization.
+The correct next step is **not** a rewrite. Keep the current monolith and make it trustworthy:
+
+```text
+Verify → Harden → Complete Sales MVP → Pilot → Measure → Expand
+```
+
+Do not add microservices, Redis, or new channel infrastructure until the measured workload/product evidence justifies it.
 
 ---
 
@@ -178,3 +221,4 @@ See [`SECURITY.md`](./SECURITY.md): session auth, RBAC, tenant filters, secrets 
 | Date | Notes |
 | --- | --- |
 | 2026-07-26 | Phase 0 architecture: monolith + Postgres + pgvector + adapters + runtime |
+| 2026-08-21 | Reclassified as implemented baseline; documented actual Prisma/RAG/auth layers and remaining production hardening |

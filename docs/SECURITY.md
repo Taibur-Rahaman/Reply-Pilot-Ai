@@ -1,42 +1,61 @@
 # FaceTai — Security
 
-> **Status:** Phase 0 policy — 2026-07-26  
+> **Status:** Implementation security contract + pilot gates — 2026-08-21  
+> **Canonical execution:** [`REAL-APPROACH.md`](./REAL-APPROACH.md)  
 > **Related:** [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) · [`API.md`](./API.md) · [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md)
 
 ---
 
-## Goals
+## Security posture
 
-- Protect tenant data isolation.
-- Harden auth before production scale.
-- Keep secrets out of git and logs.
-- Minimize PII; honor consent and deletion.
+The repository already contains meaningful security controls. The remaining milestone is to **prove coverage across every route and remove known production gaps**.
+
+### Implemented foundations
+
+- bcrypt password hashing
+- signed JWT HTTP-only session cookie
+- production refusal when `SESSION_SECRET` is missing/too short
+- role helpers for `admin > manager > moderator > agent`
+- tenant-scoped Prisma repositories
+- append-style audit-log persistence
+- public endpoint rate limiting
+- Messenger signature verification support
+- Messenger message deduplication
+- secret values kept in environment configuration rather than source
+
+These are not automatically "production-ready" until Wave A/B tests verify the complete route surface.
 
 ---
 
 ## Authentication
 
-| Topic | Rule |
-| --- | --- |
-| Dashboard login | Email + password per tenant user |
-| Phase 1 | Passwords hashed (bcrypt or argon2); **no plaintext** demo passwords in production |
-| Session | Signed (or encrypted) HTTP-only cookie; rotate on login; clear on logout |
-| Today (honest) | Cookie session exists; demo credentials — treat as **Partial** until Phase 1 Done |
-| Public APIs | Leads / webchat: rate-limit; Phase 1 embed API key for multi-tenant widgets |
-| Webhooks | Meta signature (`X-Hub-Signature-256`) required when `META_APP_SECRET` set; prod must set secret |
+| Topic | Rule | Status |
+| --- | --- | --- |
+| Dashboard login | Email + password per tenant user | Implemented |
+| Passwords | bcrypt hashes only | Implemented |
+| Session | Signed JWT in HTTP-only cookie | Implemented |
+| Production secret | Long random `SESSION_SECRET` required | Implemented fail-closed behavior |
+| Session expiry | 14-day signed token in current implementation | Implemented; review rotation policy before production |
+| Legacy admin header | Only works with explicit `ADMIN_PASSWORD` | Compatibility path; minimize/remove later |
+
+**Never** restore unsigned/base64 session fallback behavior.
 
 ---
 
 ## Authorization & tenancy
 
-| Topic | Rule |
-| --- | --- |
-| Roles | `admin` · `manager` · `moderator` · `agent` (map to PRD personas) |
-| Enforcement | Every `/api/dashboard/*` checks session **and** role; fail closed (403) |
-| Agent limits | `agent` cannot edit team, billing, or global bot secrets |
-| Tenant scope | All queries filter `tenantId` from session (or Page→tenant map for webhooks) |
-| Cross-tenant | Default deny; automated tests for isolation in Phase 1 |
-| Super Admin | Separate platform route; list/disable tenants only in Phase 1 scaffold — no tenant data browsing without explicit audit |
+| Topic | Rule | Status |
+| --- | --- | --- |
+| Roles | `admin` · `manager` · `moderator` · `agent` | Implemented |
+| Dashboard auth | Session required | Implemented on dashboard paths; verify every mutation |
+| Role gates | Fail closed with 403 | Helpers implemented; endpoint matrix required |
+| Tenant scope | Derive from trusted session for dashboard data | Implemented in repository layer; test all routes |
+| Cross-tenant | Default deny | Required acceptance test |
+| Super Admin | Separate platform/admin capability | Scaffold/verify |
+
+### Critical pilot requirement
+
+Any webhook or public request that cannot unambiguously resolve a tenant must **fail closed**. It must never silently fall back to the demo tenant in production.
 
 ---
 
@@ -44,13 +63,15 @@
 
 | Secret | Storage |
 | --- | --- |
-| `ADMIN_PASSWORD` / user password hashes | Env / DB hashes — never commit |
-| `META_*`, `OPENAI_API_KEY` / `AI_*` | Env only |
-| Page tokens (Connect) | Encrypted at rest per tenant; never log plaintext |
-| Webhook verify tokens | Env; rotate if leaked |
-| `.env*` | Gitignored; `.env.example` documents names without values |
+| User passwords | bcrypt hashes in DB |
+| `SESSION_SECRET` | Environment secret |
+| `ADMIN_PASSWORD` | Environment secret; production explicit |
+| `META_*`, `OPENAI_API_KEY` / `AI_*` | Environment only |
+| Page access tokens | Current DB persistence exists; **production encryption-at-rest must be completed before Connect launch** |
+| Webhook verify tokens | Environment; rotate if leaked |
+| `.env*` | Gitignored; `.env.example` contains names only |
 
-**Logging:** Redact tokens, Authorization headers, raw password fields, full card/PII dumps.
+**Logging:** redact tokens, Authorization headers, password fields and unnecessary PII.
 
 ---
 
@@ -58,14 +79,14 @@
 
 | Data | Guidance |
 | --- | --- |
-| Collected | Name, phone, address for COD orders; chat transcripts as needed for reply/CRM |
-| Consent | State purpose when collecting phone/address; no unnecessary PII in prompts beyond need |
-| Retention (proposed) | Conversations ~90 days; orders ~24 months — confirm ops; document deletions |
-| Deletion | Process for customer/tenant delete-on-request; scrub messages + leads + embeddings for that subject |
-| Training | Do not use one tenant’s chats to train another tenant’s models |
-| Bangla UX | Privacy copy available in BN where user-facing |
+| Collected | Name, phone, address for COD orders; conversation/CRM data needed for service |
+| Consent | Explain why phone/address is needed before collecting unnecessary PII |
+| Retention | Define and implement tenant/product retention before production scale |
+| Deletion | Delete subject-linked messages, leads, orders/CRM records and embeddings according to policy |
+| Training | Never use one tenant's chats as another tenant's training context |
+| Bangla UX | Privacy copy should be available in BN for customer-facing flows |
 
-See also [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md) — consent before PII collection in chat.
+Retention periods remain an operational decision; do not present the old proposed values as an implemented guarantee.
 
 ---
 
@@ -73,39 +94,64 @@ See also [`AI_GUARDRAILS.md`](./AI_GUARDRAILS.md) — consent before PII collect
 
 | Channel | Controls |
 | --- | --- |
-| Messenger | App Secret signature; Page token scoped; dual-mode env vs Connect vault |
-| Website chat | Origin/embed key (Phase 1); abuse rate limits |
-| Future WA/IG/TG | Provider signature verify; same tenant resolution rules |
+| Messenger | Verify Meta signature in production; resolve Page → tenant fail-closed; deduplicate message IDs |
+| Website chat | Rate limits + explicit tenant/embed identity before multi-tenant public launch |
+| Future WA/IG/TG | Provider signature verification + same tenant-resolution rules |
+| Connect | OAuth state validation + encrypted token storage required before production launch |
 
 ---
 
 ## Audit
 
-Phase 1 append-only audit events (tenant-scoped):
+Audit records exist in the data model and repository. The pilot gate is coverage, not existence.
 
-- Auth success/failure (no password in event)
-- Bot config / Prompt Builder / guardrail changes
-- KB upload / reindex
-- Handoff take / release
-- Team role changes
+Required events include:
 
-Super Admin actions audited at platform level.
+- auth success/failure without passwords
+- bot config / guardrail changes
+- KB upload/reindex
+- handoff take/release
+- team role changes
+- tenant enable/disable
+- security-sensitive integration changes
+
+Audit failures should not silently erase evidence. Decide fail-open/fail-closed per event class during Wave B.
 
 ---
 
-## Hosting notes
+## Hosting and durability
 
-- Ephemeral filesystem: **never** sole store for auth sessions lasting across instances, chats, or KB.
-- Prefer managed Postgres with TLS.
-- Render/Vercel: secrets via platform env; bind correctly; case-sensitive paths on Linux.
+- PostgreSQL must be durable and managed with TLS in production.
+- Local application disk must **not** be the sole store for chats, CRM, or KB assets.
+- Current KB uploads use local filesystem storage and must move to durable object storage/persistent volume before pilot deployment.
+- Secrets belong in the hosting platform's secret manager/environment.
+- Observability must capture authentication failures, webhook failures, AI failures and database failures without logging secrets.
 
 ---
 
 ## Incident basics
 
-1. Rotate leaked tokens immediately (Meta, AI, DB).
-2. Invalidate sessions if cookie signing key rotates.
-3. Notify affected tenants on confirmed cross-tenant or PII exposure.
+1. Rotate leaked Meta/AI/database credentials immediately.
+2. Rotate `SESSION_SECRET` if session compromise is suspected and force session invalidation.
+3. Investigate cross-tenant access as a P0.
+4. Preserve relevant audit evidence.
+5. Notify affected tenants when confirmed PII/cross-tenant exposure meets incident criteria.
+
+---
+
+## Security exit gate
+
+Before the Sales Agent pilot:
+
+- [ ] Clean production-like environment passes auth/RBAC tests.
+- [ ] Cross-tenant negative tests pass.
+- [ ] Public rate-limit behavior is verified under deployment topology.
+- [ ] Messenger signature verification is mandatory in production.
+- [ ] Webhook tenant resolution fails closed.
+- [ ] Connect token handling is not marketed as production until encrypted.
+- [ ] KB storage is durable.
+- [ ] Secrets are absent from logs and repository history.
+- [ ] Audit coverage is verified.
 
 ---
 
@@ -114,3 +160,4 @@ Super Admin actions audited at platform level.
 | Date | Notes |
 | --- | --- |
 | 2026-07-26 | Phase 0 security baseline |
+| 2026-08-21 | Rebased on actual auth/RBAC/audit implementation and added production security gates |
