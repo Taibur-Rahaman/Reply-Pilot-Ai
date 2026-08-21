@@ -21,7 +21,7 @@
 | Dashboard login | Email + password per tenant user |
 | Phase 1 | Passwords hashed (bcrypt or argon2); **no plaintext** demo passwords in production |
 | Session | Signed (or encrypted) HTTP-only cookie; rotate on login; clear on logout |
-| Today (honest) | Cookie session exists; demo credentials — treat as **Partial** until Phase 1 Done |
+| Today (honest) | JWT httpOnly cookie; bcrypt hashes; **no** `x-admin-password` session injection. Logout clears cookie only (no server revocation — PARTIAL). |
 | Public APIs | Leads / webchat: rate-limit; Phase 1 embed API key for multi-tenant widgets |
 | Webhooks | Meta signature (`X-Hub-Signature-256`) required when `META_APP_SECRET` set; prod must set secret |
 

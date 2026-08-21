@@ -1,6 +1,6 @@
 # FaceTai — Phases & Build Order
 
-> **Status:** Current (Phase 0 documentation) — 2026-07-26  
+> **Status:** Current — 2026-08-21 (Sales MVP code exists; live pilot not verified)  
 > **Related:** [`PRD.md`](./PRD.md) · [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) · [`ARCHITECTURE.md`](./ARCHITECTURE.md)  
 > **Conflict rule:** BUSINESS_DECISIONS + PRD win.
 
@@ -13,7 +13,7 @@ Status: **Done** · **In progress** · **Planned**
 | Phase | Focus | Status |
 | --- | --- | --- |
 | **0** | Documentation tree | **Done** (2026-07-26) |
-| **1** | Sales Agent MVP (Postgres, auth, RAG, handover, CRM, analytics) | **Planned** |
+| **1** | Sales Agent MVP (Postgres, auth, RAG, handover, CRM, analytics) | **In progress** (code landed; pilot **NOT VERIFIED** on live Meta/DB) |
 | **2** | Sales Intelligence | **Planned** |
 | **3** | Omnichannel + Connect | **Planned** |
 | **4** | Automation | **Planned** |

@@ -133,7 +133,12 @@ Prisma migrations, durable KB blobs, post-LLM grounding, explicit-human handoff,
 
 ---
 
-## Pilot acceptance (before P0)
+## After P0 implementation (2026-08-21)
+
+Code for the P0 list landed on `feat/sales-mvp-pilot-readiness`. Automated tests: **42 passed**, **1 skipped** (Postgres unreachable). `npm run typecheck` and `npm run build` passed. Live Messenger send, `migrate deploy` on a clean DB, and cross-tenant SQL tests are **NOT VERIFIED** in this environment.
+
+Statuses in the table above describe **pre-P0** `main`. Treat P0 rows as IMPLEMENTED/TESTED unless listed as NOT VERIFIED in [`PRD-IMPLEMENTATION-STATUS.md`](./PRD-IMPLEMENTATION-STATUS.md).
+
 
 | Criterion | Before this pass |
 |-----------|------------------|

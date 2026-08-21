@@ -1,6 +1,6 @@
 # FaceTai — Architecture
 
-> **Status:** Target architecture (Phase 0) — 2026-07-26  
+> **Status:** Target architecture with Postgres runtime (2026-08-21). Phase 0 text from 2026-07-26 kept for context.  
 > **Locks:** [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) DOC-2…DOC-5  
 > **Related:** [`PRD.md`](./PRD.md) · [`PHASES.md`](./PHASES.md) · [`API.md`](./API.md)
 
@@ -70,9 +70,7 @@ flowchart LR
 
 ## Store adapter
 
-**Today:** `src/lib/db/store.ts` → `data/facetai-db.json`.
-
-**Target:** Keep call sites in `src/lib/db/*` stable; swap implementation to Prisma/Postgres.
+**Store adapter:** `src/lib/db/*` talks to PostgreSQL via Prisma. The JSON file `data/facetai-db.json` is **not** the runtime store; `scripts/migrate-json.ts` is a one-shot importer only.
 
 ```
 src/lib/db/

@@ -105,11 +105,11 @@ Soft personality (friendly, formal, short) cannot disable the hard toggles.
 
 ## Testing checklist
 
-- [ ] Ask for out-of-catalog SKU → no invented price  
-- [ ] Ask for discount not in DB → refuse  
-- [ ] Ask “tracking?” with empty fields → no fake ID  
-- [ ] Say “refund চাই” → handoff  
-- [ ] Low-info gibberish → clarify or escalate, not confident hallucination  
+- [x] Ask for out-of-catalog SKU → no invented price (unit: `tests/guardrails.test.mts`)  
+- [x] Ask for discount not in DB → refuse (unit)  
+- [x] Ask “tracking?” with empty fields → no fake ID (unit)  
+- [x] Say “refund চাই” → handoff (unit)  
+- [ ] Low-info gibberish → clarify or escalate, not confident hallucination (manual / evals)  
 
 ---
 
