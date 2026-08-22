@@ -184,7 +184,8 @@ export async function listConversations(
   const previews = await prisma.$queryRaw<{ conversationId: string; text: string }[]>`
     SELECT DISTINCT ON ("conversationId") "conversationId", text
     FROM "Message"
-    WHERE "conversationId" = ANY(${rows.map((r) => r.id)})
+    WHERE "tenantId" = ${tenantId}
+      AND "conversationId" = ANY(${rows.map((r) => r.id)})
     ORDER BY "conversationId", "createdAt" DESC
   `;
   const previewByConvo = new Map(previews.map((p) => [p.conversationId, p.text]));

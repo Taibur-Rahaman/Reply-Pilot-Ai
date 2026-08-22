@@ -13,7 +13,7 @@
     "start:lan": "next start --hostname 0.0.0.0",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"tests/**/*.test.mts\"",
+    "test": "node --import tsx --import ./tests/load-env.mts --test \"tests/**/*.test.mts\"",
     "seed": "node --import tsx scripts/seed.ts",
     "worker": "node --import tsx scripts/worker.ts",
     "db:generate": "prisma generate",
