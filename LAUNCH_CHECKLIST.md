@@ -74,4 +74,4 @@ Status as of 2026-08-04. ✅ done in this repo · ⚠️ needs a human decision/
 - [x] ✅ Marketing headings legible: `base.css` styles bare `h1`–`h4` with the dark shell's near-white `--rp-text`, and an element-level rule beats the `--ink` those headings inherit from `.legacy-site` — so on `/`, `/privacy` and `/terms` every heading (hero headline, section titles, all five pricing tier names) rendered near-white on the light background at ~1.05:1. Now `#0c2b33` at ~13.6:1
 - [x] ✅ Manually verified: landing page, login, dashboard (with real seeded data), privacy/terms pages, mobile nav, on a local Postgres instance
 - [ ] ⚠️ Load-test the AI reply path if you expect meaningful launch traffic (LLM latency dominates response time)
-- [ ] ⚠️ Confirm Meta App Review status if using live Messenger (see `docs/QA-REPORT.md`)
+- [ ] ⚠️ Confirm Meta App Review status if using live Messenger (see `docs/audit/qa-report.md`)

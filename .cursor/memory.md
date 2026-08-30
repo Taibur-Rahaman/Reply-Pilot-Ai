@@ -217,7 +217,7 @@ Demo credentials: `admin@demo.facetai.local` / `facetai-demo` (or `ADMIN_PASSWOR
 | 2026-07-20 | Custom AI ৳15k–৳50k+; floor ৳15k (Q1) | PRD §14 |
 | 2026-07-20 | ৳990 monthly = pure service unless upsold (Q6) | PRD §14 |
 | 2026-07-20 | FaceTai 2.0 surfaces + SaaS plans ৳1,990+ | PRD v2.0 |
-| 2026-07-20 | QA: 52 Pass / 0 Fail / 4 Blocked | `docs/QA-REPORT.md` |
+| 2026-07-20 | QA: 52 Pass / 0 Fail / 4 Blocked | `docs/audit/qa-report.md` |
 | 2026-07-20 | Prefer Postgres for tenancy (Q4 proposed) | PRD |
 | 2026-07-20 | Retention proposal 90d chats / 24mo orders (Q7 proposed, unconfirmed) | PRD |
 | 2026-07-26 | Created `.cursor/` AI knowledge base (prd/architecture/design/phases/rules/memory) | This initiative |

@@ -121,6 +121,9 @@ Next.js App Router monolith · JSON store replaced by PostgreSQL + Prisma · pgv
 
 | Doc | For |
 | --- | --- |
+| **[`docs/README.md`](docs/README.md)** | **Documentation index (standard paths)** |
+| **[`docs/pilot/NEXT.md`](docs/pilot/NEXT.md)** | **Pilot next steps, missing work, loop prompt** |
+| [`docs/pilot/readiness-report.md`](docs/pilot/readiness-report.md) | Gate matrix A–O (NOT PILOT READY until Messenger verified) |
 | **[`docs/handbook/`](docs/handbook/README.md)** | **Full product handbook — architecture, data model, API, Meta Connect, AI runtime, design system, security, runbook, roadmap** |
 | [`INSTALLATION.md`](INSTALLATION.md) | Local setup + first deploy, step by step |
 | [`USER_GUIDE.md`](USER_GUIDE.md) | Business owners using the dashboard day to day |

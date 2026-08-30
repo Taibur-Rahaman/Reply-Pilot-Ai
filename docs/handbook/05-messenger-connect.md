@@ -392,7 +392,7 @@ The `503` body is deliberately instructive:
   "ok": false,
   "error": "META_VERIFY_TOKEN is not set",
   "hint": "Copy .env.example → .env.local, set META_VERIFY_TOKEN to a long random string, restart the server, then use the same value as Verify Token in Meta → Messenger → Webhooks.",
-  "docs": "See README § Environment variables and docs/QA-REPORT.md Meta webhook steps."
+  "docs": "See README § Environment variables and docs/audit/qa-report.md Meta webhook steps."
 }
 ```
 
