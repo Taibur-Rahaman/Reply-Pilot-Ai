@@ -11,9 +11,10 @@ This file exists so agents do **not** treat Phase-0/Phase-1 planning docs as pro
 ## Source of truth
 
 1. Running code, Prisma schema, tests  
-2. [`IMPLEMENTATION-AUDIT.md`](./IMPLEMENTATION-AUDIT.md)  
-3. [`PRD-IMPLEMENTATION-STATUS.md`](./PRD-IMPLEMENTATION-STATUS.md)  
-4. [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) (ethics, stack locks)
+2. [`PILOT-READINESS-REPORT.md`](./PILOT-READINESS-REPORT.md) — **current operational gate matrix (A–O)**  
+3. [`IMPLEMENTATION-AUDIT.md`](./IMPLEMENTATION-AUDIT.md)  
+4. [`PRD-IMPLEMENTATION-STATUS.md`](./PRD-IMPLEMENTATION-STATUS.md)  
+5. [`BUSINESS_DECISIONS.md`](./BUSINESS_DECISIONS.md) (ethics, stack locks)
 
 `PHASES.md` and older “Phase 1 Planned” language describe history. Sales MVP pieces already exist in the monolith.
 

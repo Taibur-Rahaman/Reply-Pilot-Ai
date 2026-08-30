@@ -149,7 +149,7 @@ export function rulesReply(
   }
 
   if (
-    /price|প্রাইস|দাম|কত|৳|package|প্যাকেজ|plan|starter|growth|pro|business|1990|4990|9990|14990/.test(
+    /price|প্রাইস|দাম|কত|koto|dam\b|৳|package|প্যাকেজ|plan|starter|growth|pro|business|1990|4990|9990|14990/.test(
       t,
     )
   ) {

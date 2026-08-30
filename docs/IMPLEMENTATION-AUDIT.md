@@ -133,33 +133,34 @@ Prisma migrations, durable KB blobs, post-LLM grounding, explicit-human handoff,
 
 ---
 
+## After operational verification (2026-08-31)
+
+Branch `feat/sales-mvp-pilot-readiness` — P0 code landed; operational verification pass completed against live Docker Postgres.
+
+| Criterion | Status |
+|-----------|--------|
+| PostgreSQL runtime | **VERIFIED** |
+| Migrations from clean DB | **VERIFIED** (`facetai_verify`) |
+| Tenant isolation tests | **VERIFIED** (48-suite, 0 skip with DB up) |
+| RBAC tests | **VERIFIED** (unit) |
+| Auth production-safe | **PARTIAL** (header back door removed; no session revocation; login-failure audit gap) |
+| Audit logging | **PARTIAL** (write path verified; no read API; no failure row) |
+| RAG tenant-scoped | **PARTIAL** (keyword verified; embed optional) |
+| Catalog grounding | **VERIFIED** (unit + webchat) |
+| Adversarial guardrail tests | **VERIFIED** |
+| Handoff stops AI | **VERIFIED** (webchat E2E; Messenger live **BLOCKED**) |
+| Durable KB storage | **VERIFIED** (`fileContent` in Postgres) |
+| Webchat pipeline | **VERIFIED** (`scripts/verify-webchat.mts` 10/10) |
+| Messenger live path | **BLOCKED** (no Meta send credentials) |
+| Production build | **VERIFIED** |
+| Critical tests | **VERIFIED** (48 passed, 0 failed, 0 skipped) |
+
+Full matrix: [`PILOT-READINESS-REPORT.md`](./PILOT-READINESS-REPORT.md). **Not pilot ready** until Messenger gate clears.
+
+---
+
 ## After P0 implementation (2026-08-21)
 
-Code for the P0 list landed on `feat/sales-mvp-pilot-readiness`. Automated tests: **42 passed**, **1 skipped** (Postgres unreachable). `npm run typecheck` and `npm run build` passed. Live Messenger send, `migrate deploy` on a clean DB, and cross-tenant SQL tests are **NOT VERIFIED** in this environment.
+Code for the P0 list landed on `feat/sales-mvp-pilot-readiness`. Initial automated tests: **42 passed**, **1 skipped** (Postgres unreachable). Superseded by 2026-08-31 verification above.
 
-Statuses in the table above describe **pre-P0** `main`. Treat P0 rows as IMPLEMENTED/TESTED unless listed as NOT VERIFIED in [`PRD-IMPLEMENTATION-STATUS.md`](./PRD-IMPLEMENTATION-STATUS.md).
-
-
-| Criterion | Before this pass |
-|-----------|------------------|
-| PostgreSQL runtime | VERIFIED |
-| Migrations from clean DB | NOT VERIFIED |
-| Tenant isolation tests | NOT VERIFIED |
-| RBAC tests | NOT VERIFIED |
-| Auth production-safe | PARTIAL (header back door) |
-| Audit logging | PARTIAL |
-| RAG tenant-scoped | VERIFIED |
-| Catalog grounding | PARTIAL |
-| Adversarial guardrail tests | MISSING |
-| Handoff stops AI | PARTIAL (Messenger only) |
-| CRM timeline | PARTIAL |
-| Analytics accurate / SQL | PARTIAL |
-| Messenger path verified | PARTIAL |
-| Webhook dedupe | PARTIAL |
-| Durable KB storage | BROKEN |
-| Rate limits | VERIFIED (in-process) |
-| Production build | NOT VERIFIED |
-| Critical tests | BROKEN |
-| Secrets not committed | VERIFIED (`.env*` gitignored) |
-| Docs match code | PARTIAL |
-| Pilot runbook | MISSING (`handbook/10` is ops, not a pilot checklist) |
+Statuses in the audit table above describe **pre-P0** `main` unless updated in [`PRD-IMPLEMENTATION-STATUS.md`](./PRD-IMPLEMENTATION-STATUS.md).

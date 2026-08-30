@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --import ./tests/load-env.mts --test \"tests/**/*.test.mts\"",
     "seed": "node --import tsx scripts/seed.ts",
+    "verify:webchat": "node --import tsx scripts/verify-webchat.mts",
     "worker": "node --import tsx scripts/worker.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
