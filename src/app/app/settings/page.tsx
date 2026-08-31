@@ -18,6 +18,11 @@ import { LOGIN_PATH } from "@/lib/config";
 
 type PageConn = { id: string; pageName: string; status: string };
 type Member = { id: string; name: string; email: string; role: string };
+type TelegramConn = {
+  botUsername: string;
+  adminChatId?: string;
+  status: string;
+};
 
 /** Internal role → what it means to a shop owner. */
 const ROLE_LABEL: Record<string, string> = {
@@ -32,20 +37,95 @@ export default function SettingsPage() {
   const router = useRouter();
   const [pages, setPages] = useState<PageConn[]>([]);
   const [team, setTeam] = useState<Member[]>([]);
+  const [telegram, setTelegram] = useState<TelegramConn | null>(null);
+  const [botToken, setBotToken] = useState("");
+  const [connectingTelegram, setConnectingTelegram] = useState(false);
+  const [botEnabled, setBotEnabled] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [instructions, setInstructions] = useState("");
   const [loadingAdvanced, setLoadingAdvanced] = useState(false);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     void (async () => {
-      const [connectRes, teamRes] = await Promise.all([
+      const [connectRes, teamRes, telegramRes, configRes] = await Promise.all([
         apiFetch<{ pages?: PageConn[] }>("/api/connect"),
         apiFetch<{ users?: Member[] }>("/api/dashboard/team"),
+        apiFetch<{ connection?: TelegramConn | null }>(
+          "/api/dashboard/telegram",
+        ),
+        apiFetch<{ config?: { botEnabled?: boolean } }>(
+          "/api/dashboard/knowledge",
+        ),
       ]);
       if (connectRes.ok) setPages(connectRes.data.pages || []);
       if (teamRes.ok) setTeam(teamRes.data.users || []);
+      if (telegramRes.ok) setTelegram(telegramRes.data.connection || null);
+      if (configRes.ok) {
+        setBotEnabled(configRes.data.config?.botEnabled !== false);
+      }
     })();
-  }, []);
+  }, [reloadKey]);
+
+  async function toggleBot(next: boolean) {
+    // Optimistic: this is the control an owner reaches for mid-rush, and a
+    // spinner between tap and feedback reads as "it didn't work".
+    setBotEnabled(next);
+    const result = await apiFetch("/api/dashboard/knowledge", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save_config", botEnabled: next }),
+    });
+    if (!result.ok) {
+      setBotEnabled(!next);
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(
+      next
+        ? "Your AI is answering customers"
+        : "Your AI is paused — messages still arrive",
+    );
+  }
+
+  async function connectTelegram() {
+    if (!botToken.trim()) {
+      toast.error("Paste the token @BotFather gave you.");
+      return;
+    }
+    setConnectingTelegram(true);
+    const result = await apiFetch<{ next?: string }>("/api/dashboard/telegram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botToken: botToken.trim() }),
+    });
+    setConnectingTelegram(false);
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    // Cleared immediately — a bot token left sitting in a form field is a
+    // credential on screen for anyone walking past.
+    setBotToken("");
+    toast.success(result.data.next || "Telegram connected");
+    setReloadKey((key) => key + 1);
+  }
+
+  async function disconnectTelegram() {
+    if (!window.confirm("Disconnect Telegram? Your bot will stop replying.")) {
+      return;
+    }
+    const result = await apiFetch("/api/dashboard/telegram", {
+      method: "DELETE",
+    });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success("Telegram disconnected");
+    setReloadKey((key) => key + 1);
+  }
 
   // The AI instructions are only fetched when the section is opened — there is
   // no reason to pull them for the 99% of visits that never expand Advanced.
@@ -83,6 +163,29 @@ export default function SettingsPage() {
       <h1 className="rp-page-title">Settings</h1>
 
       <div className="rp-card rp-stack">
+        <p className="rp-card__title">
+          {botEnabled ? "🟢 My AI is on" : "🔴 My AI is paused"}
+        </p>
+        <p className="rp-card__body">
+          {botEnabled
+            ? "Your AI answers customers automatically on every connected channel."
+            : "Customer messages still arrive in Messages — but you have to answer them yourself."}
+        </p>
+        <button
+          type="button"
+          className={
+            botEnabled
+              ? "rp-btn rp-btn--secondary rp-btn--block"
+              : "rp-btn rp-btn--primary rp-btn--block"
+          }
+          aria-pressed={botEnabled}
+          onClick={() => void toggleBot(!botEnabled)}
+        >
+          {botEnabled ? "Pause my AI" : "Turn my AI back on"}
+        </button>
+      </div>
+
+      <div className="rp-card rp-stack">
         <p className="rp-card__title">📘 My Facebook Page</p>
         {pages.length > 0 ? (
           <>
@@ -104,6 +207,67 @@ export default function SettingsPage() {
             >
               Connect My Facebook Page
             </a>
+          </>
+        )}
+      </div>
+
+      <div className="rp-card rp-stack">
+        <p className="rp-card__title">✈️ Telegram</p>
+        {telegram ? (
+          <>
+            <span className="rp-badge rp-badge--success">
+              ✓ Connected
+              {telegram.botUsername ? ` — @${telegram.botUsername}` : ""}
+            </span>
+            <p className="rp-card__body">
+              {telegram.adminChatId
+                ? "You get an alert here for every new order. Send /help to your bot to see what else it can do."
+                : `Almost done — open ${telegram.botUsername ? `@${telegram.botUsername}` : "your bot"} in Telegram and send /start so it knows where to reach you.`}
+            </p>
+            <button
+              type="button"
+              className="rp-btn rp-btn--ghost rp-btn--block"
+              onClick={() => void disconnectTelegram()}
+            >
+              Disconnect Telegram
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="rp-card__body">
+              Get order alerts on your phone, and pause your AI or block a
+              customer without opening this website.
+            </p>
+            <ol className="rp-card__body" style={{ paddingLeft: "1.25em" }}>
+              <li>
+                In Telegram, open <strong>@BotFather</strong> and send{" "}
+                <strong>/newbot</strong>.
+              </li>
+              <li>Pick any name — it becomes your shop&rsquo;s bot.</li>
+              <li>Paste the token it gives you below.</li>
+            </ol>
+            <div className="rp-field">
+              <label className="rp-label" htmlFor="telegram-token">
+                Bot token from @BotFather
+              </label>
+              <input
+                id="telegram-token"
+                className="rp-input"
+                type="password"
+                autoComplete="off"
+                placeholder="123456789:AA..."
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="rp-btn rp-btn--primary rp-btn--block"
+              disabled={connectingTelegram}
+              onClick={() => void connectTelegram()}
+            >
+              {connectingTelegram ? "Connecting…" : "Connect Telegram"}
+            </button>
           </>
         )}
       </div>

@@ -4,7 +4,10 @@ services:
     container_name: facetai-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      # Host 5433, not 5432: another project's Postgres already owns 5432 on
+      # this machine, and Docker silently leaves the port unpublished rather
+      # than reporting a conflict — connections then reach the wrong database.
+      - "5433:5432"
     environment:
       POSTGRES_USER: facetai
       POSTGRES_PASSWORD: facetai

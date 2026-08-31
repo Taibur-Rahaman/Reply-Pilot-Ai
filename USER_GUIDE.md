@@ -17,8 +17,29 @@ Your home page after login. Shows today's chats, orders, revenue, conversion rat
 All customer conversations — Messenger, WhatsApp, Instagram, website chat, Telegram — in one list. Click a thread to see the full history.
 
 - **Take over / Leave**: click to pause the AI and reply yourself, or hand back to the AI. While you're handling a chat, the AI won't reply to that customer.
+- **Block this customer**: for spammers and abuse. Stronger than taking over — a blocked person's messages are dropped on arrival, so they never reach your inbox and never cost you an AI reply. They are not told. Undo it any time from the same screen.
 - **Notes**: add an internal note visible only to your team, saved to that customer's timeline.
 - If a customer asks something the AI can't confidently answer, it will hand off to a human automatically and flag the thread.
+
+## Telegram
+
+Settings → Telegram connects your shop to a Telegram bot, so you can run the business from your phone without opening this site.
+
+Setup is one paste:
+
+1. In Telegram, open **@BotFather** and send **/newbot**. Pick any name.
+2. Copy the token it gives you (it looks like `123456789:AA...`) and paste it into Settings → Telegram.
+3. Open your new bot and send **/start**. That tells it which chat is yours.
+
+Once connected:
+
+- Every new order is pushed to you as a message.
+- Customers can message the bot too — the same AI answers them, and those chats appear in Messages like any other channel.
+- Owner commands (they only work in your chat, never a customer's): `/status`, `/on`, `/off`, `/orders`, `/blocked`, `/block <id>`, `/unblock <id>`, `/help`.
+
+## Pausing your AI
+
+Settings has a single on/off switch at the top, mirrored by `/on` and `/off` in Telegram. Pausing stops the AI replying on **every** channel at once. Customer messages still arrive in Messages — you just have to answer them yourself. Nothing is disconnected, so turning it back on is instant.
 
 ## Leads / CRM
 

@@ -1,0 +1,65 @@
+# Automatic Let's Encrypt TLS for app.replypilotai.shop.
+#
+# Prerequisites: an A record for app.replypilotai.shop pointing at this VPS, and
+# ports 80 and 443 open in ufw *and* in Hostinger's panel firewall. The HTTP-01
+# challenge needs port 80 reachable, or Caddy loops on ACME errors.
+
+{
+	# Where Let's Encrypt sends expiry notices. An unreachable address means a
+	# renewal problem fails silently.
+	email admin@replypilotai.shop
+
+	# Uncomment while testing DNS, so a misconfiguration does not burn the
+	# production rate limit (5 duplicate certificates per domain per week).
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+app.replypilotai.shop {
+	# Deliberately no security headers here.
+	#
+	# next.config.ts already emits Strict-Transport-Security,
+	# X-Content-Type-Options, X-Frame-Options, Referrer-Policy and
+	# Permissions-Policy on every response. Setting them again at this layer
+	# produces duplicated values, and browsers treat a comma-joined HSTS value
+	# as malformed and drop the directive entirely — "defence in depth" here
+	# would actively remove HSTS. Security headers stay owned by one file.
+	#
+	# Caddy adds no security headers of its own, so there is nothing to strip
+	# either. A CSP, when it lands, also belongs in next.config.ts: Next needs
+	# per-request nonces that this proxy cannot generate.
+
+	encode zstd gzip
+
+	reverse_proxy app:3000 {
+		# Caddy sets X-Forwarded-For / -Proto / -Host automatically and Next
+		# reads them to build absolute URLs. Do not set them by hand.
+
+		# Server-sent events must not sit in a proxy buffer.
+		flush_interval -1
+
+		# An AI reply generated inside a request can be slow when the upstream
+		# model is under load. src/lib/bot/ai.ts aborts at 30s, so this ceiling
+		# only exists to stop a wedged connection holding a worker forever.
+		transport http {
+			response_header_timeout 120s
+			read_timeout 300s
+		}
+	}
+
+	# No request_body max_size: KB uploads would 413 under a small default.
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# The apex serves a separate WordPress site and is intentionally not handled
+# here. If the app ever becomes canonical, uncomment this and change
+# NEXT_PUBLIC_APP_URL to match — the canonical host is baked into the bundle.
+# replypilotai.shop, www.replypilotai.shop {
+# 	redir https://app.replypilotai.shop{uri} permanent
+# }

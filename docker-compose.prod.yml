@@ -1,0 +1,175 @@
+# Production stack for app.replypilotai.shop.
+#
+# Postgres is NOT here: it lives in Supabase (pgvector), reached over
+# DATABASE_URL. The dev docker-compose.yml in this repo starts a local pgvector
+# container and is unrelated — do not run it on this host.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Two untracked files sit next to this one, both chmod 600:
+#   .env             build-time NEXT_PUBLIC_* (Compose interpolates ${...} from it)
+#   .env.production  runtime secrets (injected via env_file, never interpolated)
+
+x-app-image: &app-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+    # Compile-time substitutions. Changing one of these requires `build`, not
+    # just `up` — the old values are already inside the emitted JavaScript.
+    args:
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME}
+      NEXT_PUBLIC_WHATSAPP_NUMBER: ${NEXT_PUBLIC_WHATSAPP_NUMBER}
+      NEXT_PUBLIC_MESSENGER_URL: ${NEXT_PUBLIC_MESSENGER_URL:-}
+  image: replypilot-ai:${IMAGE_TAG:-latest}
+
+x-app-env: &app-env
+  # DATABASE_URL, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, ADMIN_PASSWORD,
+  # SUPER_ADMIN_EMAIL, META_*, AI_*, *_WEBHOOK_URL.
+  # src/instrumentation.ts throws at boot if the first three are missing.
+  env_file:
+    - .env.production
+
+x-logging: &logging
+  # Unbounded json-file logs are the classic way a small VPS runs out of disk.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    <<: [*app-image, *app-env]
+    container_name: replypilot-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Headroom below the container limit so V8 collects garbage instead of
+      # being OOM-killed.
+      NODE_OPTIONS: --max-old-space-size=1024
+    volumes:
+      # KB uploads (src/lib/db/knowledge.ts). A named volume, not a bind mount:
+      # the image pre-creates /app/data owned by node:node and a named volume
+      # inherits that, where a host bind mount would arrive root-owned and every
+      # upload would fail with EACCES.
+      - replypilot_data:/app/data
+    # No `ports:` on purpose — only caddy is reachable from the internet.
+    # Publishing 3000 would serve the app unencrypted and bypass TLS entirely.
+    expose:
+      - "3000"
+    healthcheck:
+      # /api/health returns 503 when Postgres is unreachable, so this is a real
+      # readiness signal rather than "the process is up". Uses node's global
+      # fetch because neither curl nor wget exists in the slim base image.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Next's boot plus the first Prisma connection to Supabase is slow on a
+      # cold start; too short a start_period fails a healthy app on every deploy.
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1536M
+        reservations:
+          memory: 512M
+    logging: *logging
+
+  worker:
+    <<: [*app-image, *app-env]
+    container_name: replypilot-worker
+    restart: unless-stopped
+    # `npm run worker` = node --import tsx scripts/worker.ts. Same image as the
+    # app; this line is the only difference.
+    command: ["npm", "run", "worker"]
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=512
+      # WORKER_BATCH / WORKER_IDLE_MS are read in scripts/worker.ts; the
+      # defaults (5 / 3000ms) are fine. Override in .env.production if needed.
+      #
+      # NEXT_PUBLIC_* are repeated here deliberately. The worker is not compiled
+      # by Next, so nothing is inlined for it: it reaches src/lib/config.ts
+      # through the bot pipeline and reads process.env at module load. Omit
+      # these and the worker silently uses config.ts's fallbacks (the apex URL,
+      # the demo WhatsApp number) while the web app uses the correct values —
+      # the hardest class of bug in this stack to notice.
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME}
+      NEXT_PUBLIC_WHATSAPP_NUMBER: ${NEXT_PUBLIC_WHATSAPP_NUMBER}
+      NEXT_PUBLIC_MESSENGER_URL: ${NEXT_PUBLIC_MESSENGER_URL:-}
+    volumes:
+      # No job handler writes uploads today, but sharing the volume means a
+      # future KB-processing job cannot silently write into a dead layer.
+      - replypilot_data:/app/data
+    depends_on:
+      app:
+        # Not a real dependency — the worker talks to Supabase directly. It
+        # waits so a bad DATABASE_URL or missing SESSION_SECRET surfaces once,
+        # as one unhealthy app, instead of twice as two crash loops.
+        condition: service_healthy
+    # No healthcheck on purpose: the worker exposes no endpoint, and drain()
+    # blocking on a slow LLM call is normal rather than sick — a liveness probe
+    # would restart a working process. Crashes are covered by the restart
+    # policy, and scripts/worker.ts exits non-zero on fatal errors.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+        reservations:
+          memory: 256M
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: replypilot-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data holds the Let's Encrypt account key and issued certificates.
+      # Losing it means re-issuing on every restart, which burns the CA's limit
+      # of 5 duplicate certificates per week during a bad deploy day.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        # service_started, not service_healthy: Caddy must come up and complete
+        # the ACME challenge even when Supabase is down and /api/health is 503.
+        # Otherwise a database outage also blocks certificate renewal, turning a
+        # 503 into a TLS error.
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging: *logging
+
+  # One-shot schema sync. Behind a profile so `up -d` can never trigger it:
+  # the repo has no prisma/migrations, so `db push` is the only option, and it
+  # is destructive-capable on drift.
+  #
+  #   docker compose -f docker-compose.prod.yml --profile setup run --rm migrate
+  migrate:
+    <<: [*app-image, *app-env]
+    profiles: ["setup"]
+    restart: "no"
+    # --skip-generate: the client was already generated into this image at build.
+    command: ["npx", "prisma", "db", "push", "--skip-generate"]
+
+volumes:
+  replypilot_data:
+  caddy_data:
+  caddy_config:
