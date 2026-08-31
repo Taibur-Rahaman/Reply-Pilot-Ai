@@ -45,6 +45,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# caddy state, if the prod stack is ever run from a working copy
+/caddy_data/
+/caddy_config/
+
 # typescript
 *.tsbuildinfo
 
+.claude/settings.local.json

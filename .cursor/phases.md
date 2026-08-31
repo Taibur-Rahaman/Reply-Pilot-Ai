@@ -4,7 +4,7 @@
 | --- | --- |
 | **As of** | 2026-07-26 (code + docs audit) |
 | **Naming** | PRD uses **P0 / P1 / P1.5 / P2** and **Waves A / B / C**. README historically said “Phase 1/2” for landing/bot — map: landing≈P0, Messenger≈P1 |
-| **Related** | [prd.md](./prd.md) · [architecture.md](./architecture.md) · [memory.md](./memory.md) · `docs/QA-REPORT.md` |
+| **Related** | [prd.md](./prd.md) · [architecture.md](./architecture.md) · [memory.md](./memory.md) · `docs/audit/qa-report.md` |
 
 Status keys: **Completed** · **In Progress** · **Partial** · **Planned** · **Blocked**
 

@@ -291,6 +291,7 @@ export type BotConfig = {
   abandonedLeadHours: number;
   personality: string;
   guardrailRules: GuardrailRules;
+  botEnabled: boolean;
   updatedAt: string;
 };
 

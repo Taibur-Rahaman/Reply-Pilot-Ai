@@ -24,7 +24,8 @@ cp .env.example .env.local
 
 # 3) Schema + seed
 npm install
-npx prisma db push
+npx prisma migrate deploy   # new database
+# npx prisma db push         # existing databases created without migrations
 npm run seed
 
 # Optional: one-shot migrate from legacy JSON dump
@@ -68,6 +69,8 @@ Copy `.env.example` → `.env.local`:
 | `SESSION_SECRET` | **Yes in production** | JWT signing secret for `facetai_session` |
 | `ADMIN_PASSWORD` | **Yes in production** | Demo admin password (hashed on seed) |
 | `SUPER_ADMIN_EMAIL` | **Yes for `/admin/tenants`** | Only this email gets cross-tenant super-admin access |
+| `TOKEN_ENCRYPTION_KEY` | **Yes in production** | AES-256-GCM for Page tokens |
+| `META_PAGE_ID` | Operator-managed Messenger | Only this Page maps to the env token tenant; unknown Pages are refused |
 | `MAX_AI_REPLIES_PER_DAY` | No | Per-tenant daily cap on paid LLM calls (default 500) |
 | `LEADS_WEBHOOK_URL` | No | POST JSON leads |
 | `ORDERS_WEBHOOK_URL` | No | POST JSON orders |
@@ -118,6 +121,9 @@ Next.js App Router monolith · JSON store replaced by PostgreSQL + Prisma · pgv
 
 | Doc | For |
 | --- | --- |
+| **[`docs/README.md`](docs/README.md)** | **Documentation index (standard paths)** |
+| **[`docs/pilot/NEXT.md`](docs/pilot/NEXT.md)** | **Pilot next steps, missing work, loop prompt** |
+| [`docs/pilot/readiness-report.md`](docs/pilot/readiness-report.md) | Gate matrix A–O (NOT PILOT READY until Messenger verified) |
 | **[`docs/handbook/`](docs/handbook/README.md)** | **Full product handbook — architecture, data model, API, Meta Connect, AI runtime, design system, security, runbook, roadmap** |
 | [`INSTALLATION.md`](INSTALLATION.md) | Local setup + first deploy, step by step |
 | [`USER_GUIDE.md`](USER_GUIDE.md) | Business owners using the dashboard day to day |

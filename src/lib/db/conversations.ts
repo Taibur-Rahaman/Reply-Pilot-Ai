@@ -137,7 +137,7 @@ export async function appendMessage(input: {
       conversationId: input.conversationId,
       direction: input.direction,
       text: input.text,
-      mid: input.mid,
+      mid: input.mid?.trim() || undefined,
       imageUrl: input.imageUrl,
       recognition: input.recognition ?? undefined,
       createdAt: now,
@@ -184,7 +184,8 @@ export async function listConversations(
   const previews = await prisma.$queryRaw<{ conversationId: string; text: string }[]>`
     SELECT DISTINCT ON ("conversationId") "conversationId", text
     FROM "Message"
-    WHERE "conversationId" = ANY(${rows.map((r) => r.id)})
+    WHERE "tenantId" = ${tenantId}
+      AND "conversationId" = ANY(${rows.map((r) => r.id)})
     ORDER BY "conversationId", "createdAt" DESC
   `;
   const previewByConvo = new Map(previews.map((p) => [p.conversationId, p.text]));

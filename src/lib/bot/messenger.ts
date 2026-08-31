@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { getMetaAppSecret, getPageAccessToken } from "./config";
+import { getMetaAppSecret } from "./config";
+import type { Channel } from "@/lib/db/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -11,6 +12,9 @@ export type InboundMessage = {
   imageUrl?: string;
   isEcho?: boolean;
   timestamp?: number;
+  channel?: Channel;
+  /** When set, skip Page→tenant resolution (website chat). */
+  tenantId?: string;
 };
 
 export type MessagingEvent = {
@@ -108,9 +112,9 @@ export async function sendTextMessage(
   text: string,
   pageAccessToken?: string,
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
-  const token = pageAccessToken || getPageAccessToken();
+  const token = pageAccessToken;
   if (!token) {
-    console.warn("[messenger] No META_PAGE_ACCESS_TOKEN — reply not sent.");
+    console.warn("[messenger] No page access token — reply not sent.");
     return { ok: false, skipped: true, error: "missing_page_token" };
   }
 
@@ -141,7 +145,7 @@ export async function sendImageMessage(
   imageUrl: string,
   pageAccessToken?: string,
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
-  const token = pageAccessToken || getPageAccessToken();
+  const token = pageAccessToken;
   if (!token) {
     return { ok: false, skipped: true, error: "missing_page_token" };
   }
@@ -170,5 +174,34 @@ export async function sendImageMessage(
     return { ok: false, error: err.slice(0, 200) };
   }
 
+  return { ok: true };
+}
+
+export async function sendTypingOn(
+  recipientId: string,
+  pageAccessToken?: string,
+): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
+  const token = pageAccessToken;
+  if (!token) {
+    return { ok: false, skipped: true, error: "missing_page_token" };
+  }
+
+  const response = await fetch(`${GRAPH}/me/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      sender_action: "typing_on",
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text().catch(() => "");
+    console.error("[messenger] typing_on failed", response.status, err.slice(0, 200));
+    return { ok: false, error: err.slice(0, 200) };
+  }
   return { ok: true };
 }

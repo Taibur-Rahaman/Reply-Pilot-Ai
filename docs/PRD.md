@@ -47,7 +47,7 @@ Agents: Sales | Support | Booking | Property (RentBee) | Healthcare | Restaurant
 | RBAC (admin/manager/moderator/agent) | **Partial** | Team UI stub; API gates incomplete |
 | Website chat (`/api/webchat`) | **Current** | Widget + persistence in store |
 | Messenger webhook + reply pipeline | **Current** | Env tokens; Bangla-first AI/rules |
-| Instagram / WhatsApp / Telegram live | **Partial** | Channel field + inbox UI + ingest stubs; Graph send/receive Planned (Phase 3) |
+| Instagram / WhatsApp / Telegram live | **Partial** | Telegram is live (bot webhook + send + owner commands). Instagram / WhatsApp: channel field + inbox UI + ingest stubs; Graph send/receive Planned (Phase 3) |
 | Catalog + recommend / upsell scoring | **Current** | Grounded on catalog when present |
 | Orders + invoice + courier fields | **Current** | Dashboard + bot path; Sheet webhook optional |
 | Complaint detect + queue | **Partial** | Keywords + handoff; full refund workflow polish Phase 1 |
@@ -88,7 +88,7 @@ BD SMBs run Facebook/Instagram ads into Messenger (and WhatsApp), but:
 ### Non-goals (near term)
 
 - Shipping Support/Booking/Property agents before Sales Agent MVP Done.
-- Claiming Connect / live IG/WA/Telegram before Done criteria.
+- Claiming Connect / live IG/WA before Done criteria.
 - Deceptive selling, fake scarcity, invented logistics.
 - Separate Nest/FastAPI backend or Redis until PHASES capacity trigger.
 
@@ -135,7 +135,7 @@ They differ by: system prompt, tools, domain schemas, escalation policy.
 | **0** | Documentation | This PRD + locks + architecture (no feature code) |
 | **1** | Sales Agent MVP | Postgres, auth/RBAC, RAG, Prompt Builder, handover, CRM timeline, analytics home |
 | **2** | Sales Intelligence | Lead score, memory fields, follow-up scheduler, playbooks, personalities |
-| **3** | Omnichannel | Live IG / WA / Telegram + Connect (F39) polish |
+| **3** | Omnichannel | Live IG / WA + Connect (F39) polish (Telegram shipped) |
 | **4** | Automation | Workflows, campaigns, email/SMS, richer tool actions |
 | **5** | Enterprise | Hard isolation, usage billing, WL, public API, agent marketplace, SSO |
 
@@ -173,7 +173,7 @@ Detail and Done criteria: [`PHASES.md`](./PHASES.md).
 | FR-C2 | Messenger webhook verify + reply | Must | **Current** |
 | FR-C3 | Omnichannel inbox UI + channel field | Must | **Partial** |
 | FR-C4 | WhatsApp Cloud live | Must | **Planned** (Phase 3) |
-| FR-C5 | Instagram / Telegram live | Should | **Planned** (Phase 3) |
+| FR-C5 | Instagram / Telegram live | Should | Telegram **Done**; Instagram **Planned** (Phase 3) |
 | FR-C6 | FaceTai Connect (self-serve Page) | Must | **Partial** → Phase 3 Done |
 | FR-C7 | Comment AI (spam / reply / lead) | Should | **Partial** |
 

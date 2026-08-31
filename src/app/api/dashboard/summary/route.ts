@@ -3,20 +3,16 @@ import {
   getAnalyticsSummary,
   getBotConfig,
   getSessionFromRequest,
-  listConversations,
-  listFaq,
-  listKbDocuments,
-  listLeads,
-  listOrders,
-  listPages,
-  listProducts,
-  listUsers,
   metaConnectConfigured,
 } from "@/lib/db";
 import { messengerConfigured } from "@/lib/bot/pipeline";
 
 export const runtime = "nodejs";
 
+/**
+ * Home KPIs only — do not load full CRM tables into memory here.
+ * Lists belong on their own dashboard endpoints.
+ */
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request);
   if (!session) {
@@ -24,43 +20,25 @@ export async function GET(request: Request) {
   }
 
   const tenantId = session.tenantId;
-  const [
-    analytics,
-    leads,
-    orders,
-    products,
-    conversations,
-    faq,
-    kb,
-    pages,
-    users,
-    config,
-  ] = await Promise.all([
+  const [analytics, config] = await Promise.all([
     getAnalyticsSummary(tenantId),
-    listLeads(tenantId),
-    listOrders(tenantId),
-    listProducts(tenantId),
-    listConversations(tenantId),
-    listFaq(tenantId),
-    listKbDocuments(tenantId),
-    listPages(tenantId),
-    listUsers(tenantId),
     getBotConfig(tenantId),
   ]);
 
   return NextResponse.json({
     ok: true,
-    session,
+    session: {
+      userId: session.userId,
+      tenantId: session.tenantId,
+      email: session.email,
+      name: session.name,
+      role: session.role,
+    },
     analytics,
-    leads,
-    orders,
-    products,
-    conversations,
-    faq,
-    kb,
-    pages,
-    users,
-    config,
+    config: {
+      businessName: config.businessName,
+      botEnabled: config.botEnabled,
+    },
     messenger: messengerConfigured(),
     connect: metaConnectConfigured(),
   });

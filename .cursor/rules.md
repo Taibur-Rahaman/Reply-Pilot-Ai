@@ -173,7 +173,7 @@
 1. No test framework in repo yet — when adding tests, prefer Vitest or Playwright aligned with Next 16.
 2. Minimum valuable tests: lead validation, tenant isolation, handoff silence, order validate.
 3. Do not claim QA green for Blocked Meta/OpenAI items without credentials.
-4. Update `docs/QA-REPORT.md` when running a full QA pass.
+4. Update `docs/audit/qa-report.md` when running a full QA pass.
 
 ---
 

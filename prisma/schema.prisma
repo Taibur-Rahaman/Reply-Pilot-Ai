@@ -1,6 +1,14 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+
+  // "native" covers local development. "debian-openssl-3.0.x" is pinned for the
+  // production container: Prisma otherwise *sniffs* the OpenSSL version at
+  // generate time, and a slim base image with no openssl package makes it guess
+  // 1.1.x. The runtime then cannot find an engine for the 3.0.x it actually has,
+  // and every query fails with PrismaClientInitializationError at boot. Pinning
+  // the target removes the guess.
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -33,6 +41,108 @@ model Tenant {
   commentEvents         CommentEvent[]
   auditLogs             AuditLog[]
   timelineEvents        TimelineEvent[]
+  jobs                  Job[]
+  aiUsage               AiUsageDaily[]
+  blockedSenders        BlockedSender[]
+  telegramConnection    TelegramConnection?
+}
+
+/// Senders the shop owner has cut off entirely.
+///
+/// Distinct from `Conversation.handoffActive`, which only pauses the AI so a
+/// human can take the conversation over — the customer still gets replies. A
+/// block means nothing is generated and nothing is stored: the point is to stop
+/// a spammer or an abusive buyer from consuming LLM budget and inbox attention,
+/// so the check has to run before the pipeline does any paid work.
+///
+/// Keyed on senderId without the channel because that mirrors how handoff is
+/// keyed, and because sender ids are opaque per-channel identifiers (a Messenger
+/// PSID and a Telegram chat id cannot collide). `channel` is recorded for
+/// display only.
+model BlockedSender {
+  id        String   @id
+  tenantId  String
+  senderId  String
+  channel   String   @default("messenger")
+  reason    String?
+  blockedBy String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, senderId])
+  @@index([tenantId, createdAt])
+}
+
+/// A tenant's Telegram bot, created by the owner via @BotFather.
+///
+/// One bot per tenant: the token *is* the identity, so a shared bot could not
+/// tell two shops apart. `secretToken` is echoed back by Telegram in the
+/// X-Telegram-Bot-Api-Secret-Token header and is the only thing standing
+/// between the webhook and anyone who guesses the URL — Telegram signs nothing.
+///
+/// `adminChatId` is the owner's own chat with the bot. It is where order
+/// notifications land and the only chat whose /commands are honoured.
+model TelegramConnection {
+  tenantId    String   @id
+  /// Encrypted at rest via src/lib/crypto.ts — same treatment as Page tokens.
+  botToken    String
+  botUsername String   @default("")
+  secretToken String
+  adminChatId String?
+  status      String   @default("connected")
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+/// Per-tenant daily count of paid LLM calls.
+///
+/// This lives in Postgres rather than memory because the in-process counter it
+/// replaced reset on every cold start and every deploy — which made the cap
+/// decorative exactly where it matters. One tenant whose Facebook post goes
+/// viral can otherwise exhaust a shared free-tier quota for everyone.
+model AiUsageDaily {
+  tenantId String
+  /// UTC date, midnight-truncated.
+  day      DateTime
+  calls    Int      @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, day])
+  @@index([day])
+}
+
+/// Durable work queue. The Messenger webhook must ACK Meta in well under its
+/// timeout, but generating a reply costs seconds (RAG + LLM + Graph send) — so
+/// the webhook only writes a Job row and returns 200, and the reply is produced
+/// out of band. Deliberately Postgres-backed, not Redis: at this scale a table
+/// with SKIP LOCKED is enough, and `enqueue`/`drain` in src/lib/jobs/queue.ts
+/// are the seam to swap in BullMQ later without touching call sites.
+model Job {
+  id        String    @id
+  tenantId  String
+  type      String
+  payload   Json
+  /// pending | running | done | failed
+  status    String    @default("pending")
+  attempts  Int       @default(0)
+  runAt     DateTime  @default(now())
+  lockedAt  DateTime?
+  lockedBy  String?
+  lastError String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// The claim query orders by (status, runAt); the partial-ish composite index
+  /// keeps it off a sequential scan once the table accumulates done rows.
+  @@index([status, runAt])
+  @@index([tenantId, createdAt])
 }
 
 model User {
@@ -106,6 +216,7 @@ model Message {
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, mid])
   @@index([tenantId, conversationId, createdAt])
 }
 
@@ -194,6 +305,8 @@ model KbDocument {
   source        String
   extractedText String   @default("")
   storagePath   String?
+  /// Original upload bytes. Durable store for ephemeral app disks.
+  fileContent   Bytes?
   status        String
   note          String?
   createdAt     DateTime @default(now())
@@ -241,6 +354,10 @@ model BotConfig {
   productFaq          String
   productImageUrl     String   @default("")
   handoffEnabled      Boolean  @default(true)
+  /// Master switch. False silences the agent on every channel without
+  /// disconnecting anything, so the owner can pause during a stock-out or a
+  /// pricing change instead of deleting the Page connection.
+  botEnabled          Boolean  @default(true)
   abandonedLeadHours  Int      @default(24)
   /// Sales personality blurb for Prompt Builder
   personality         String   @default("")

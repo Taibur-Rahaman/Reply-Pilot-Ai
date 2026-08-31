@@ -138,7 +138,7 @@ All under `/api/dashboard/*`. Phase 1: enforce roles (`admin` | `manager` | `mod
 ## Webhook reliability
 
 - Messenger: verify signature when secret configured; respond 200 quickly; process pipeline sync in Phase 1 (queue later if timeouts).
-- **Current**: inbound messages are deduped by Meta's `mid` before processing, so retried webhook deliveries are skipped instead of double-processed.
+- **Current**: inbound messages are deduped by unique `(tenantId, mid)` (Postgres unique + P2002). Signature is checked synchronously; the Sales pipeline runs in Next.js `after()` so Meta receives a fast 200.
 
 ## Rate limiting
 

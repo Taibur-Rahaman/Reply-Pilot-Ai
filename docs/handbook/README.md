@@ -94,4 +94,5 @@ and four RBAC roles.
 | Why my bot isn't replying | [`10-operations-runbook.md#troubleshooting-decision-tree`](./10-operations-runbook.md#troubleshooting-decision-tree) |
 | Design tokens / Figma prompts | [`08-design-system.md`](./08-design-system.md) |
 | Launch readiness scores | [`11-scorecard-and-roadmap.md`](./11-scorecard-and-roadmap.md) |
+| Pilot gate matrix + next steps | [`../pilot/NEXT.md`](../pilot/NEXT.md) · [`../pilot/readiness-report.md`](../pilot/readiness-report.md) |
 | Legacy phase docs | [`../PRD.md`](../PRD.md), [`../PHASES.md`](../PHASES.md) |

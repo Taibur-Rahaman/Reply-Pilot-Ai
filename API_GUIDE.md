@@ -31,6 +31,7 @@ These are meant to be called from the public website/chat widget or Meta. All ar
 | `POST /api/bot/reply` | 20/10min | Generate a reply without sending anywhere (testing) |
 | `POST /api/comments` | 30/hr | Facebook comment moderation (spam flag / auto-reply / lead capture) |
 | `GET/POST /api/messenger/webhook` | — (Meta traffic) | Meta verify handshake + inbound Messenger events, signature-verified |
+| `GET/POST /api/telegram/webhook` | — (Telegram traffic) | Inbound Telegram updates for `?t=<tenantId>`. Telegram signs nothing, so auth is a constant-time compare of the `X-Telegram-Bot-Api-Secret-Token` header against that tenant's stored secret |
 | `GET /api/health` | — | `{ ok, status }` — liveness probe for uptime monitoring |
 
 ```bash
@@ -53,7 +54,7 @@ All under `/api/dashboard/*`. `tenantId` is always derived from your session —
 | --- | --- | --- |
 | `/api/dashboard/summary` | GET | Home KPIs + bundled lists (leads, orders, products, conversations, config) |
 | `/api/dashboard/analytics` | GET | Analytics breakdowns |
-| `/api/dashboard/chats` | GET, PATCH | Threads, messages, take/leave handoff, notes |
+| `/api/dashboard/chats` | GET, PATCH | Threads, messages, take/leave handoff, notes, block/unblock |
 | `/api/dashboard/leads` | GET, PATCH | CRM stage updates, follow-up queue |
 | `/api/dashboard/orders` | GET, POST, PATCH | Order list/create/update |
 | `/api/dashboard/orders/[id]/invoice` | GET | Printable HTML invoice |
@@ -64,8 +65,15 @@ All under `/api/dashboard/*`. `tenantId` is always derived from your session —
 | `/api/dashboard/knowledge` | GET, POST, PUT | FAQ, uploads, Prompt Builder + guardrails |
 | `/api/dashboard/comments` | GET, POST | Comment AI settings + event log |
 | `/api/dashboard/team` | GET, PUT | Team members / roles |
+| `/api/dashboard/telegram` | GET, POST, DELETE | Connect / inspect / disconnect this tenant's Telegram bot. `manager`+. GET never returns the bot token |
 
-Role gates use `admin > manager > moderator > agent`; some actions (e.g. team management) require `manager` or above.
+Role gates use `admin > manager > moderator > agent`; some actions (e.g. team management, connecting Telegram) require `manager` or above.
+
+### Blocking a customer
+
+`PATCH /api/dashboard/chats` with `{"conversationId":"conv_…","action":"block"}` (or `"unblock"`). The sender is resolved from the conversation, never taken from the body — otherwise any signed-in user could block an id belonging to another tenant.
+
+A block is not a stronger handoff. Handoff pauses the AI and a human keeps replying; a block drops the sender's messages at the top of the pipeline, before dedupe, storage, or any LLM call. `GET` returns `blocked` on each conversation and on the single-conversation response.
 
 ## Super-admin (cross-tenant)
 

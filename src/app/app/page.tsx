@@ -21,6 +21,9 @@ type Summary = {
     conversations: number;
     openLeads: number;
     leads: number;
+    handoffsActive: number;
+    ordersToPack: number;
+    openComplaints: number;
   };
   connect: { appId: boolean };
   config: { businessName: string };
@@ -52,20 +55,10 @@ export default function HomePage() {
 
   useEffect(() => {
     void (async () => {
-      const [summaryRes, chatsRes, ordersRes, complaintsRes, connectRes] =
-        await Promise.all([
-          apiFetch<Summary>("/api/dashboard/summary"),
-          apiFetch<{ conversations?: { handoffActive?: boolean }[] }>(
-            "/api/dashboard/chats",
-          ),
-          apiFetch<{ orders?: { trackingStatus?: string }[] }>(
-            "/api/dashboard/orders",
-          ),
-          apiFetch<{ complaints?: { status?: string }[] }>(
-            "/api/dashboard/complaints",
-          ),
-          apiFetch<{ pages?: { pageName: string }[] }>("/api/connect"),
-        ]);
+      const [summaryRes, connectRes] = await Promise.all([
+        apiFetch<Summary>("/api/dashboard/summary"),
+        apiFetch<{ pages?: { pageName: string }[] }>("/api/connect"),
+      ]);
 
       if (!summaryRes.ok) {
         setError(summaryRes.error);
@@ -74,21 +67,9 @@ export default function HomePage() {
       setSummary(summaryRes.data);
 
       setAttention({
-        waitingChats: chatsRes.ok
-          ? (chatsRes.data.conversations || []).filter((c) => c.handoffActive)
-              .length
-          : 0,
-        ordersToPack: ordersRes.ok
-          ? (ordersRes.data.orders || []).filter(
-              (o) =>
-                o.trackingStatus === "new" || o.trackingStatus === "confirmed",
-            ).length
-          : 0,
-        unhappyCustomers: complaintsRes.ok
-          ? (complaintsRes.data.complaints || []).filter(
-              (c) => c.status !== "resolved" && c.status !== "closed",
-            ).length
-          : 0,
+        waitingChats: summaryRes.data.analytics.handoffsActive || 0,
+        ordersToPack: summaryRes.data.analytics.ordersToPack || 0,
+        unhappyCustomers: summaryRes.data.analytics.openComplaints || 0,
       });
 
       const pages = connectRes.ok ? connectRes.data.pages || [] : [];

@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased] — Sales MVP pilot-readiness P0 — 2026-08-21
+
+Harden the existing Sales Agent (webchat + Messenger) rather than starting Phase 2.
+
+### Security / tenancy
+- Unmapped Meta Page IDs no longer fall through to the demo tenant.
+- Removed `x-admin-password` dashboard session injection.
+- RBAC on catalog, knowledge, ecommerce, Connect, and comment-settings writes (manager+).
+- Login disambiguates the same email across tenants (`tenantSlug` / 409).
+- Page tokens encrypted at rest when `TOKEN_ENCRYPTION_KEY` is set.
+
+### AI / handoff
+- Shared Sales pipeline for website chat (guardrails + handoff).
+- Explicit human request and order-dispute escalation.
+- Pre/post LLM catalog grounding (no invented price/discount/tracking/refund).
+- `botEnabled` persisted and honored.
+
+### Data
+- Knowledge uploads store original bytes in Postgres (`fileContent`).
+- Unique `(tenantId, mid)` webhook dedupe.
+- Dashboard summary KPIs from SQL only (handoffs, qualified leads, response volume).
+- CRM stage changes write timeline events.
+- Initial Prisma migration (`prisma/migrations/20260821120000_init`).
+
+### Tests
+- Guardrails, RBAC, Messenger signature, per-tenant send tokens, crypto round-trip.
+- Cross-tenant isolation test (skips if Postgres is down).
+
+---
+
 ## [Unreleased] — Production hardening & rebrand — 2026-08-03
 
 Rebranded from the internal codename **FaceTai** to **ReplyPilot AI** across user-facing copy, and hardened the app for production. No breaking changes to data or existing sessions.

@@ -5,6 +5,7 @@ import {
   listProducts,
   updateProduct,
 } from "@/lib/db";
+import { denyUnless, MIN_ROLE } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,8 @@ export async function PATCH(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  const denied = denyUnless(session, MIN_ROLE.catalogWrite);
+  if (denied) return denied;
   try {
     const body = (await request.json()) as {
       id?: string;

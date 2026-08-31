@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   createKbStub,
   deleteFaq,
+  deleteKbDocument,
   getBotConfig,
   getSessionFromRequest,
   listFaq,
@@ -10,6 +11,7 @@ import {
   storeKbUpload,
   upsertFaq,
 } from "@/lib/db";
+import { denyUnless, MIN_ROLE } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 
@@ -31,6 +33,8 @@ export async function PUT(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  const denied = denyUnless(session, MIN_ROLE.knowledgeWrite);
+  if (denied) return denied;
   try {
     const body = (await request.json()) as Record<string, unknown>;
 
@@ -98,6 +102,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ ok: true, kb: doc });
     }
 
+    if (body.action === "delete_kb") {
+      const ok = await deleteKbDocument(session.tenantId, String(body.id || ""));
+      return NextResponse.json({ ok });
+    }
+
     if (body.action === "save_config") {
       if (session.role === "agent") {
         return NextResponse.json(
@@ -129,6 +138,8 @@ export async function PUT(request: Request) {
             typeof body.handoffEnabled === "boolean"
               ? body.handoffEnabled
               : undefined,
+          botEnabled:
+            typeof body.botEnabled === "boolean" ? body.botEnabled : undefined,
           abandonedLeadHours:
             typeof body.abandonedLeadHours === "number"
               ? body.abandonedLeadHours
@@ -161,6 +172,8 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+  const denied = denyUnless(session, MIN_ROLE.knowledgeWrite);
+  if (denied) return denied;
 
   try {
     const form = await request.formData();

@@ -271,4 +271,4 @@ See [phases.md](./phases.md) for completion status and next priorities.
 | Long-term memory / never-change | [memory.md](./memory.md) |
 | Full MoSCoW + AC | `docs/PRD.md` |
 | Bot setup sketch | `docs/PHASE2-AI-BOT.md` (may be stale; PRD wins) |
-| QA snapshot | `docs/QA-REPORT.md` (2026-07-20: 52 Pass / 0 Fail / 4 Blocked) |
+| QA snapshot | `docs/audit/qa-report.md` (2026-07-20: 52 Pass / 0 Fail / 4 Blocked) |

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateUser, encodeSession } from "@/lib/db";
+import { authenticateUser, encodeSession, writeAuditLog } from "@/lib/db";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       password?: string;
+      tenantSlug?: string;
     };
     const email = String(body.email || "").trim();
     const password = String(body.password || "");
@@ -27,7 +28,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const session = await authenticateUser(email, password);
+    const session = await authenticateUser(
+      email,
+      password,
+      body.tenantSlug?.trim(),
+    );
+    if (session === "needs_tenant") {
+      return NextResponse.json(
+        {
+          error: "Multiple tenants share this email. Pass tenantSlug.",
+          code: "needs_tenant",
+        },
+        { status: 409 },
+      );
+    }
     if (!session) {
       return NextResponse.json(
         { error: "Invalid credentials." },
@@ -35,10 +49,16 @@ export async function POST(request: Request) {
       );
     }
 
+    await writeAuditLog({
+      tenantId: session.tenantId,
+      actorId: session.userId,
+      actorEmail: session.email,
+      action: "auth.login_success",
+      entityType: "user",
+      entityId: session.userId,
+    }).catch(() => undefined);
+
     const token = await encodeSession(session);
-    // The token is returned only as an httpOnly cookie. Echoing it in the JSON
-    // body would make it readable by any script on the page, which defeats the
-    // point of httpOnly — and the login form never used it.
     const response = NextResponse.json({ ok: true, session });
     response.cookies.set("facetai_session", token, {
       httpOnly: true,

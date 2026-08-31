@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getMetaVerifyToken } from "@/lib/bot/config";
 import {
   normalizeMessagingEvents,
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
         ok: false,
         error: "META_VERIFY_TOKEN is not set",
         hint: "Copy .env.example → .env.local, set META_VERIFY_TOKEN to a long random string, restart the server, then use the same value as Verify Token in Meta → Messenger → Webhooks.",
-        docs: "See README § Environment variables and docs/QA-REPORT.md Meta webhook steps.",
+        docs: "See README § Environment variables and docs/audit/qa-report.md Meta webhook steps.",
       },
       { status: 503 },
     );
@@ -57,7 +57,8 @@ export async function GET(request: Request) {
 
 /**
  * Inbound Messenger events (POST).
- * Always returns 200 quickly after signature check so Meta does not retry forever.
+ * Signature is checked synchronously; pipeline runs in after() so Meta gets
+ * a fast 200 and does not retry on LLM latency.
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -85,16 +86,16 @@ export async function POST(request: Request) {
   }
 
   const events = normalizeMessagingEvents(body);
-  const results = [];
 
-  for (const event of events) {
-    try {
-      results.push(await handleInboundMessage(event));
-    } catch (error) {
-      console.error("[webhook] handle error:", error);
-      results.push({ handled: false, reason: "error" });
+  after(async () => {
+    for (const event of events) {
+      try {
+        await handleInboundMessage(event);
+      } catch (error) {
+        console.error("[webhook] handle error:", error);
+      }
     }
-  }
+  });
 
-  return NextResponse.json({ ok: true, processed: results.length, results });
+  return NextResponse.json({ ok: true, received: events.length });
 }

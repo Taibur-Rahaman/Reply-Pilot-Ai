@@ -11,7 +11,7 @@ For the person operating the ReplyPilot AI platform itself — environment confi
 | `ADMIN_PASSWORD` | **Production** | Password for the seeded demo admin login path. Also required in prod (no `facetai-demo` default outside dev). |
 | `SUPER_ADMIN_EMAIL` | For `/admin/tenants` | Only this exact email gets cross-tenant visibility. A tenant's own `admin` role does **not** grant this — it only manages that tenant. |
 | `MAX_AI_REPLIES_PER_DAY` | No | Per-tenant daily cap on paid LLM calls (default 500). Once hit, that tenant's bot falls back to rule-based replies for the rest of the day instead of erroring. |
-| `META_VERIFY_TOKEN` / `META_APP_SECRET` / `META_APP_ID` / `META_REDIRECT_URI` / `META_PAGE_ACCESS_TOKEN` | For live Messenger | See `docs/QA-REPORT.md` for the Meta App Review checklist |
+| `META_VERIFY_TOKEN` / `META_APP_SECRET` / `META_APP_ID` / `META_REDIRECT_URI` / `META_PAGE_ACCESS_TOKEN` | For live Messenger | See `docs/audit/qa-report.md` for the Meta App Review checklist |
 | `OPENAI_API_KEY` / `AI_API_KEY`, `AI_PROVIDER`, `AI_BASE_URL`, `AI_MODEL`, `AI_VISION_MODEL`, `AI_EMBED_MODEL` | No | Without these, the bot uses rules + keyword search only |
 | `AI_COST_PER_1K` | No | Tunes the dashboard's AI cost estimate (heuristic, not exact token accounting) |
 | `LEADS_WEBHOOK_URL` / `ORDERS_WEBHOOK_URL` | No | POSTs a copy of every lead/order as JSON (e.g. to a Google Sheet via Apps Script/Zapier). Treat these as sensitive — anything with the URL can receive customer data. |

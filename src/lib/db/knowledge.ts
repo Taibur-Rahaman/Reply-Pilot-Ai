@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { DATA_DIR, newId, toIso } from "./ids";
 import { prisma } from "./prisma";
@@ -32,6 +32,7 @@ function mapBotConfig(row: {
   abandonedLeadHours: number;
   personality: string;
   guardrailRules: unknown;
+  botEnabled?: boolean;
   updatedAt: Date;
 }): BotConfig {
   return {
@@ -46,6 +47,7 @@ function mapBotConfig(row: {
     abandonedLeadHours: row.abandonedLeadHours,
     personality: row.personality || "",
     guardrailRules: parseGuardrails(row.guardrailRules),
+    botEnabled: row.botEnabled !== false,
     updatedAt: toIso(row.updatedAt),
   };
 }
@@ -67,6 +69,7 @@ export async function getBotConfig(tenantId: string): Promise<BotConfig> {
       abandonedLeadHours: createdDefaults.abandonedLeadHours,
       personality: createdDefaults.personality,
       guardrailRules: createdDefaults.guardrailRules,
+      botEnabled: createdDefaults.botEnabled,
     },
   });
   return mapBotConfig(created);
@@ -100,6 +103,7 @@ export async function saveBotConfig(
       abandonedLeadHours: next.abandonedLeadHours,
       personality: next.personality || "",
       guardrailRules: next.guardrailRules as Prisma.InputJsonValue,
+      botEnabled: next.botEnabled !== false,
     },
     update: {
       pageId: next.pageId,
@@ -112,6 +116,7 @@ export async function saveBotConfig(
       abandonedLeadHours: next.abandonedLeadHours,
       personality: next.personality || "",
       guardrailRules: next.guardrailRules as Prisma.InputJsonValue,
+      botEnabled: next.botEnabled !== false,
     },
   });
   await writeAuditLog({
@@ -226,6 +231,28 @@ export async function listKbDocuments(
   return rows.map(mapKb);
 }
 
+export async function deleteKbDocument(
+  tenantId: string,
+  id: string,
+): Promise<boolean> {
+  const existing = await prisma.kbDocument.findFirst({
+    where: { id, tenantId },
+  });
+  if (!existing) return false;
+  if (existing.storagePath) {
+    await unlink(path.join(DATA_DIR, existing.storagePath)).catch(() => undefined);
+  }
+  await prisma.kbDocument.delete({ where: { id: existing.id } });
+  await writeAuditLog({
+    tenantId,
+    action: "kb.delete",
+    entityType: "kb_document",
+    entityId: id,
+    meta: { filename: existing.filename },
+  }).catch(() => undefined);
+  return true;
+}
+
 function extractTextBestEffort(
   filename: string,
   mimeType: string,
@@ -290,12 +317,18 @@ export async function storeKbUpload(input: {
   source?: KbSource;
   actor?: { userId?: string; email?: string };
 }): Promise<KbDocument> {
+  const MAX_KB_BYTES = 5 * 1024 * 1024;
+  if (input.buffer.byteLength > MAX_KB_BYTES) {
+    throw new Error("File too large (max 5MB).");
+  }
   const uploadsDir = path.join(DATA_DIR, "uploads", input.tenantId);
-  await mkdir(uploadsDir, { recursive: true });
+  await mkdir(uploadsDir, { recursive: true }).catch(() => undefined);
   const safeName = input.filename.replace(/[^\w.\-()\s\u0980-\u09FF]/g, "_");
   const id = newId("kb");
   const storagePath = path.join("uploads", input.tenantId, `${id}_${safeName}`);
-  await writeFile(path.join(DATA_DIR, storagePath), input.buffer);
+  await writeFile(path.join(DATA_DIR, storagePath), input.buffer).catch(
+    (err) => console.warn("[kb] disk cache write failed (Postgres is durable)", err),
+  );
 
   const extracted = extractTextBestEffort(
     input.filename,
@@ -312,6 +345,7 @@ export async function storeKbUpload(input: {
       source: input.source || guessSource(input.filename, input.mimeType),
       extractedText: extracted.text,
       storagePath,
+      fileContent: new Uint8Array(input.buffer),
       status: extracted.status,
       note: extracted.note,
     },

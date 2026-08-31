@@ -78,7 +78,7 @@ export async function indexKbDocument(
   documentId: string,
   text: string,
 ): Promise<number> {
-  await prisma.kbChunk.deleteMany({ where: { documentId } });
+  await prisma.kbChunk.deleteMany({ where: { documentId, tenantId } });
   const chunks = chunkText(text);
   if (!chunks.length) return 0;
 

@@ -22,6 +22,7 @@ type Convo = {
   senderName?: string;
   handoffActive: boolean;
   complaintTagged?: boolean;
+  blocked?: boolean;
   lastMessageAt: string;
   preview?: string;
 };
@@ -137,6 +138,39 @@ export default function MessagesPage() {
     reload();
   }
 
+  async function setBlocked(blocked: boolean) {
+    if (!selected) return;
+    // Blocking silently drops everything this person sends from here on, so it
+    // gets a confirm — unlike handoff, the customer is never told and the owner
+    // will not notice the mistake from this screen.
+    if (
+      blocked &&
+      !window.confirm(
+        "Block this customer? You will stop receiving their messages entirely. You can undo this later.",
+      )
+    ) {
+      return;
+    }
+    const result = await apiFetch("/api/dashboard/chats", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: selected,
+        action: blocked ? "block" : "unblock",
+      }),
+    });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success(
+      blocked
+        ? "Blocked — their messages won't reach you"
+        : "Unblocked — you'll receive their messages again",
+    );
+    reload();
+  }
+
   const current = conversations.find((c) => c.id === selected);
 
   /* ------------------------------------------------------ conversation view */
@@ -167,7 +201,7 @@ export default function MessagesPage() {
             {messages.map((m) => {
               // `direction` is an internal enum. Customers see "them" vs "your
               // AI", which is the only distinction that matters to the owner.
-              const fromCustomer = m.direction === "in";
+              const fromCustomer = m.direction === "inbound";
               return (
                 <div
                   key={m.id}
@@ -193,22 +227,52 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {current.handoffActive ? (
-          <button
-            type="button"
-            className="rp-btn rp-btn--primary rp-btn--block"
-            onClick={() => void setHandoff("leave")}
-          >
-            Let AI continue
-          </button>
+        {current.blocked ? (
+          <>
+            <div className="rp-banner rp-banner--warning">
+              <span className="rp-banner__icon" aria-hidden="true">
+                🚫
+              </span>
+              <span>
+                You blocked this customer. Nothing they send reaches you or your
+                AI.
+              </span>
+            </div>
+            <button
+              type="button"
+              className="rp-btn rp-btn--secondary rp-btn--block"
+              onClick={() => void setBlocked(false)}
+            >
+              Unblock this customer
+            </button>
+          </>
         ) : (
-          <button
-            type="button"
-            className="rp-btn rp-btn--primary rp-btn--block"
-            onClick={() => void setHandoff("take")}
-          >
-            I&rsquo;ll reply myself
-          </button>
+          <>
+            {current.handoffActive ? (
+              <button
+                type="button"
+                className="rp-btn rp-btn--primary rp-btn--block"
+                onClick={() => void setHandoff("leave")}
+              >
+                Let AI continue
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="rp-btn rp-btn--primary rp-btn--block"
+                onClick={() => void setHandoff("take")}
+              >
+                I&rsquo;ll reply myself
+              </button>
+            )}
+            <button
+              type="button"
+              className="rp-btn rp-btn--ghost rp-btn--block"
+              onClick={() => void setBlocked(true)}
+            >
+              Block this customer
+            </button>
+          </>
         )}
       </div>
     );
@@ -277,7 +341,9 @@ export default function MessagesPage() {
                     {timeAgo(c.lastMessageAt)}
                   </span>
                 </span>
-                {c.handoffActive ? (
+                {c.blocked ? (
+                  <span className="rp-badge rp-badge--danger">🚫 Blocked</span>
+                ) : c.handoffActive ? (
                   <span className="rp-badge rp-badge--warning">
                     ● Waiting for you
                   </span>

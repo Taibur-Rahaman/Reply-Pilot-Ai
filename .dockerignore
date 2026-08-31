@@ -1,0 +1,58 @@
+# Build context hygiene. Everything here either bloats the context, breaks
+# layer caching, or is actively dangerous inside an image.
+
+# Reinstalled by `npm ci` in the deps stage. Copying a macOS/arm64 tree into a
+# linux/amd64 image ships the wrong Prisma engine and the wrong native binaries.
+node_modules
+.npm
+
+# Stale local build output — otherwise the builder's `COPY . .` overwrites the
+# freshly built .next with whatever was last built on a laptop.
+.next
+out
+build
+*.tsbuildinfo
+
+# Secrets. .env.local holds the real DATABASE_URL and TOKEN_ENCRYPTION_KEY, and
+# an image layer is a permanent, shareable copy of whatever it contains. Also
+# keeps scripts/load-env.ts from finding a laptop env file inside the container.
+.env
+.env.*
+!.env.example
+
+# Runtime state belongs in the replypilot_data volume, not baked into the image.
+data
+
+.git
+.gitignore
+.github
+
+# Editor / agent config
+.claude
+.cursor
+.vscode
+.idea
+.DS_Store
+
+# Not needed to build or run the server.
+docs
+tests
+*.md
+!README.md
+
+# Dev-only Postgres stack; must never be confused with docker-compose.prod.yml.
+docker-compose.yml
+
+# Container artifacts themselves
+Dockerfile
+docker-compose.prod.yml
+Caddyfile
+.dockerignore
+
+.vercel
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage

@@ -62,6 +62,7 @@ export async function ensureSeeded(): Promise<void> {
         abandonedLeadHours: d.abandonedLeadHours,
         personality: d.personality,
         guardrailRules: d.guardrailRules,
+        botEnabled: true,
       },
     });
   }
